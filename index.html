@@ -22,31 +22,47 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23000'/%3E%3Cpath d='M12 12h40v8H22v10h24v8H22v14H12z' fill='%23fff'/%3E%3C/svg%3E"
     >
-    <link rel="stylesheet" href="styles.css?v=3">
+    <link rel="stylesheet" href="styles.css?v=4">
   </head>
   <body>
     <main class="terminal" aria-label="Flanguage music terminal">
       <section class="player">
-        <div class="player-slot">
-          <iframe
-            id="bandcamp-player"
-            title="Flanguage Bandcamp player"
-            loading="eager"
-            allow="autoplay"
-          ></iframe>
+        <nav class="transport" aria-label="Playback">
+          <button id="previous" type="button" aria-label="Previous track">
+            <span class="previous-shape" aria-hidden="true"></span>
+          </button>
+
+          <button id="play" type="button" aria-label="Play track">
+            <span class="play-shape" aria-hidden="true"></span>
+          </button>
+
+          <button id="next" type="button" aria-label="Next track">
+            <span class="next-shape" aria-hidden="true"></span>
+          </button>
+        </nav>
+        <audio id="audio" preload="metadata"></audio>
+
+        <div class="seek-row">
+          <output id="elapsed" for="position">00:00</output>
+          <input
+            id="position"
+            type="range"
+            min="0"
+            max="0"
+            step="0.01"
+            value="0"
+            aria-label="Song position"
+          >
+          <output id="duration" for="position">00:00</output>
         </div>
 
         <canvas
           id="spectrum"
           role="img"
-          aria-label="Animated monochrome spectrum"
+          aria-label="Audio-reactive monochrome frequency spectrum"
         ></canvas>
 
-        <nav class="transport" aria-label="Playback navigation">
-          <button id="previous" type="button" aria-label="Previous track">
-            <span class="previous-shape" aria-hidden="true"></span>
-          </button>
-
+        <div class="random-row">
           <button id="random" type="button" aria-label="Random track">
             <svg
               class="dice"
@@ -62,11 +78,7 @@
               <circle cx="28" cy="28" r="2.5"></circle>
             </svg>
           </button>
-
-          <button id="next" type="button" aria-label="Next track">
-            <span class="next-shape" aria-hidden="true"></span>
-          </button>
-        </nav>
+        </div>
       </section>
 
       <section class="directory" aria-label="Track directory">
@@ -104,7 +116,8 @@
       </p>
     </noscript>
 
-    <script src="data/catalog.js?v=1"></script>
-    <script src="app.js?v=3"></script>
+    <script src="data/catalog.js?v=2"></script>
+    <script src="data/spectrum-index.js?v=1"></script>
+    <script src="app.js?v=5"></script>
   </body>
 </html>
