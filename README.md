@@ -1,17 +1,19 @@
 # Flanguage Transmission Archive
 
-A CRT-styled, mobile-friendly front end for the complete
+A monochrome terminal-style, mobile-friendly front end for the complete
 [Flanguage Bandcamp catalog](https://flanguage.bandcamp.com).
 
 The site indexes 17 albums and 271 tracks, with:
 
 - Bandcamp-backed embedded playback
-- Album filtering and catalog search
-- Album-order or alphabetical A–Z browsing across all tracks
+- Black-and-white, artwork-free Bandcamp playback
+- Terminal-themed album channels and catalog search
+- Alphabetical A–Z browsing across all tracks
 - Previous/next navigation
-- Random selection across the full discography or current album
-- Animated phosphor bar spectrum
+- Dice-based random selection within the current channel
+- Animated monochrome spectrum
 - Responsive layouts for phones and desktops
+- iPhone-safe touch controls with double-tap zoom and text selection disabled
 
 ## Updating the catalog
 
