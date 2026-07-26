@@ -28,8 +28,8 @@ updated `data/catalog.js`.
 
 The Pages workflow refreshes Bandcamp's expiring stream URLs before every
 deployment and every six hours. Frequency data is generated from the real audio
-by `scripts/build-spectrum.mjs`; the dedicated build workflow commits those
-compact spectrum files back to the feature branch.
+by `scripts/build-spectrum.mjs` on the first deployment, then cached for later
+deployments.
 
 ## GitHub Pages
 
