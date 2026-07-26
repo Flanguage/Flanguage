@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Tune into the complete Flanguage discography: 17 albums, 271 tracks, one phosphor-green terminal."
+    >
+    <meta name="theme-color" content="#050907">
+    <meta property="og:title" content="Flanguage Transmission Archive">
+    <meta
+      property="og:description"
+      content="The complete Flanguage discography in a CRT music terminal."
+    >
+    <meta
+      property="og:image"
+      content="https://f4.bcbits.com/img/0032447709_10.jpg"
+    >
+    <title>Flanguage Transmission Archive</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='9' fill='%23050907'/%3E%3Cpath d='M14 13h38v9H25v8h22v9H25v13H14z' fill='%2365ff8f'/%3E%3C/svg%3E"
+    >
+    <link rel="preconnect" href="https://bandcamp.com">
+    <link rel="preconnect" href="https://f4.bcbits.com">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="ambient-noise" aria-hidden="true"></div>
+
+    <main class="terminal">
+      <header class="masthead">
+        <a
+          class="brand"
+          href="https://flanguage.bandcamp.com"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Open Flanguage on Bandcamp"
+        >
+          <span class="brand-mark">FL</span>
+          <span>
+            <strong>FLANGUAGE</strong>
+            <small>TRANSMISSION ARCHIVE</small>
+          </span>
+        </a>
+
+        <div class="status-line">
+          <span class="status-light" aria-hidden="true"></span>
+          <span>BC-LINK ACTIVE</span>
+          <span id="clock">--:--:--</span>
+        </div>
+      </header>
+
+      <section class="console">
+        <article class="screen-column">
+          <div class="screen-bezel">
+            <div class="screen">
+              <div class="screen-grid" aria-hidden="true"></div>
+              <div class="screen-header">
+                <span>SIGNAL // <b id="signal-number">000</b></span>
+                <button
+                  class="text-button"
+                  id="visualizer-toggle"
+                  type="button"
+                  aria-pressed="true"
+                >
+                  SPECTRUM: ON
+                </button>
+              </div>
+
+              <canvas
+                id="spectrum"
+                role="img"
+                aria-label="Animated CRT bar spectrum"
+              ></canvas>
+
+              <div class="now-playing">
+                <a
+                  id="art-link"
+                  class="art-frame"
+                  href="https://flanguage.bandcamp.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Open the current album on Bandcamp"
+                >
+                  <img
+                    id="album-art"
+                    src="https://f4.bcbits.com/img/a1848011971_10.jpg"
+                    alt=""
+                    width="220"
+                    height="220"
+                  >
+                  <span class="art-scan" aria-hidden="true"></span>
+                </a>
+
+                <div class="track-readout">
+                  <span class="eyebrow">NOW SELECTED</span>
+                  <h1 id="track-title">Establishing signal…</h1>
+                  <p id="album-title">Flanguage</p>
+                  <div class="readout-meta">
+                    <span id="track-number">TRK --</span>
+                    <span id="track-duration">--:--</span>
+                    <span id="release-year">----</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="transport">
+            <button id="previous" class="transport-button" type="button">
+              <span aria-hidden="true">◀</span> PREV
+            </button>
+            <button id="random" class="transport-button random" type="button">
+              <span aria-hidden="true">✳</span> RANDOM
+            </button>
+            <button id="next" class="transport-button" type="button">
+              NEXT <span aria-hidden="true">▶</span>
+            </button>
+          </div>
+
+          <div class="bandcamp-deck">
+            <div class="deck-label">
+              <span>BANDCAMP PLAYBACK DECK</span>
+              <span>PRESS PLAY BELOW</span>
+            </div>
+            <iframe
+              id="bandcamp-player"
+              title="Bandcamp music player"
+              loading="eager"
+              allow="autoplay"
+            ></iframe>
+          </div>
+        </article>
+
+        <aside class="library">
+          <div class="library-heading">
+            <div>
+              <span class="eyebrow">ARCHIVE DIRECTORY</span>
+              <h2>ALL TRANSMISSIONS</h2>
+            </div>
+            <span id="result-count" class="result-count">271 TRACKS</span>
+          </div>
+
+          <div class="filters">
+            <label>
+              <span>ALBUM CHANNEL</span>
+              <select id="album-filter">
+                <option value="all">All albums</option>
+              </select>
+            </label>
+
+            <label>
+              <span>SEARCH FREQUENCY</span>
+              <input
+                id="search"
+                type="search"
+                inputmode="search"
+                placeholder="Track or album…"
+                autocomplete="off"
+              >
+            </label>
+          </div>
+
+          <div class="scope-row">
+            <span>LIST ORDER</span>
+            <div class="segmented" role="group" aria-label="Track list order">
+              <button
+                class="order-button active"
+                data-order="album"
+                type="button"
+              >
+                ALBUM
+              </button>
+              <button class="order-button" data-order="alpha" type="button">
+                A–Z
+              </button>
+            </div>
+          </div>
+
+          <div class="scope-row">
+            <span>RANDOM SCOPE</span>
+            <div class="segmented" role="group" aria-label="Random scope">
+              <button
+                class="scope-button active"
+                data-scope="all"
+                type="button"
+              >
+                ALL
+              </button>
+              <button class="scope-button" data-scope="album" type="button">
+                ALBUM
+              </button>
+            </div>
+          </div>
+
+          <div id="track-list" class="track-list" aria-live="polite"></div>
+
+          <div class="archive-footer">
+            <span id="archive-stats">17 ALBUMS // 271 TRACKS</span>
+            <a
+              href="https://flanguage.bandcamp.com"
+              target="_blank"
+              rel="noreferrer"
+              >BUY / DOWNLOAD ↗</a
+            >
+          </div>
+        </aside>
+      </section>
+
+      <footer class="footer">
+        <span>FLANGUAGE // BALTIMORE, MARYLAND</span>
+        <span>CATALOG SIGNAL PROVIDED BY BANDCAMP</span>
+      </footer>
+    </main>
+
+    <noscript>
+      <p class="noscript">
+        JavaScript is required for the archive controls.
+        <a href="https://flanguage.bandcamp.com">Listen on Bandcamp.</a>
+      </p>
+    </noscript>
+
+    <script src="data/catalog.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
