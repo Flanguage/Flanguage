@@ -63,7 +63,8 @@
       "artwork=none",
       "bgcol=000000",
       "linkcol=ffffff",
-      "transparent=true",
+      "fgcol=ffffff",
+      "transparent=false",
       "",
     ].join("/");
   }

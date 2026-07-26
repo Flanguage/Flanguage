@@ -77,13 +77,39 @@ select:focus-visible {
   margin: 0 auto;
 }
 
+.player-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  margin: 0 auto;
+}
+
+.player-slot::before,
+.player-slot::after {
+  color: var(--white);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.player-slot::before {
+  content: "[";
+}
+
+.player-slot::after {
+  content: "]";
+}
+
 #bandcamp-player {
   display: block;
-  width: 100%;
+  width: 42px;
   height: 42px;
   margin: 0 auto;
-  border: 1px solid var(--white);
+  overflow: hidden;
+  border: 0;
   background: var(--black);
+  filter: grayscale(1) contrast(2.5) brightness(0.95);
 }
 
 #spectrum {

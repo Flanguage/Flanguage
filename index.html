@@ -22,17 +22,19 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23000'/%3E%3Cpath d='M12 12h40v8H22v10h24v8H22v14H12z' fill='%23fff'/%3E%3C/svg%3E"
     >
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=3">
   </head>
   <body>
     <main class="terminal" aria-label="Flanguage music terminal">
       <section class="player">
-        <iframe
-          id="bandcamp-player"
-          title="Flanguage Bandcamp player"
-          loading="eager"
-          allow="autoplay"
-        ></iframe>
+        <div class="player-slot">
+          <iframe
+            id="bandcamp-player"
+            title="Flanguage Bandcamp player"
+            loading="eager"
+            allow="autoplay"
+          ></iframe>
+        </div>
 
         <canvas
           id="spectrum"
@@ -102,7 +104,7 @@
       </p>
     </noscript>
 
-    <script src="data/catalog.js"></script>
-    <script src="app.js"></script>
+    <script src="data/catalog.js?v=1"></script>
+    <script src="app.js?v=3"></script>
   </body>
 </html>
