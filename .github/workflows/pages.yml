@@ -15,7 +15,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -23,12 +23,16 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 360
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Restore audio spectra
+      - name: Refresh Bandcamp catalog and streams
+        id: catalog
+        run: node scripts/scrape-bandcamp.mjs --include-streams --github-output
+
+      - name: Restore current audio analysis
         id: spectra
         uses: actions/cache@v4
         with:
@@ -36,24 +40,30 @@ jobs:
             data/spectra
             data/spectrum-index.js
             data/fingerprints.js
-          key: flanguage-audio-data-${{ hashFiles('data/catalog.js', 'scripts/build-spectrum.mjs', 'scripts/build-fingerprints.mjs') }}
+          key: flanguage-audio-v3-${{ hashFiles('scripts/spectrum-analysis.mjs', 'scripts/build-spectrum.mjs', 'scripts/build-fingerprints.mjs') }}-${{ steps.catalog.outputs.inventory }}
+          restore-keys: |
+            flanguage-audio-v3-${{ hashFiles('scripts/spectrum-analysis.mjs', 'scripts/build-spectrum.mjs', 'scripts/build-fingerprints.mjs') }}-
 
-      - name: Refresh Bandcamp streams
-        run: node scripts/scrape-bandcamp.mjs --include-streams
+      - name: Check audio analysis cache
+        id: analysis
+        run: node scripts/validate-audio-data.mjs --github-output
 
       - name: Install audio analyzer
-        if: steps.spectra.outputs.cache-hit != 'true'
+        if: ${{ steps.spectra.outputs.cache-hit != 'true' || steps.analysis.outputs.valid != 'true' }}
         run: |
           sudo apt-get update
           sudo apt-get install --yes ffmpeg
 
       - name: Build track fingerprints
-        if: steps.spectra.outputs.cache-hit != 'true'
+        if: ${{ steps.spectra.outputs.cache-hit != 'true' || steps.analysis.outputs.valid != 'true' }}
         run: node scripts/build-fingerprints.mjs
 
       - name: Analyze frequency spectra
-        if: steps.spectra.outputs.cache-hit != 'true'
+        if: ${{ steps.spectra.outputs.cache-hit != 'true' || steps.analysis.outputs.valid != 'true' }}
         run: node scripts/build-spectrum.mjs
+
+      - name: Verify audio analysis
+        run: node scripts/validate-audio-data.mjs --assert
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
