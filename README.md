@@ -5,13 +5,14 @@ A monochrome terminal-style, mobile-friendly front end for the complete
 
 The site indexes 17 albums and 271 tracks, with:
 
-- Bandcamp-backed native playback with seek and time readout
+- Bandcamp-backed playback with a native-audio path and official embed fallback
 - Black-and-white, artwork-free transport controls
 - Terminal-themed album channels and catalog search
 - Alphabetical A–Z browsing across all tracks
 - Previous/next navigation
 - Dice-based random selection within the current channel
-- Song-synchronized 32-band frequency spectrum
+- Song-synchronized 32-band spectrum when analysis data is deployed, with a
+  monochrome terminal visualization fallback on branch-deployed Pages
 - Responsive layouts for phones and desktops
 - iPhone-safe touch controls with double-tap zoom and text selection disabled
 
