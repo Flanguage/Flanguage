@@ -11,8 +11,8 @@ The site indexes 17 albums and 271 tracks, with:
 - Alphabetical A–Z browsing across all tracks
 - Previous/next navigation
 - Dice-based random selection within the current channel
-- Song-synchronized 32-band spectrum when analysis data is deployed, with a
-  monochrome terminal visualization fallback on branch-deployed Pages
+- Song-synchronized 32-band spectrum generated from each track's real audio;
+  no simulated spectrum is shown when audio analysis is unavailable
 - Responsive layouts for phones and desktops
 - iPhone-safe touch controls with double-tap zoom and text selection disabled
 
@@ -29,8 +29,8 @@ updated `data/catalog.js`.
 
 The Pages workflow refreshes Bandcamp's expiring stream URLs before every
 deployment and every six hours. Frequency data is generated from the real audio
-by `scripts/build-spectrum.mjs` on the first deployment, then cached for later
-deployments.
+by `scripts/build-spectrum.mjs` with FFmpeg on the first deployment, then cached
+for later deployments.
 
 ## GitHub Pages
 
