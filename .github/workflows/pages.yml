@@ -5,6 +5,8 @@ on:
     branches:
       - main
   workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
 
 permissions:
   contents: read
@@ -21,9 +23,26 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Restore audio spectra
+        id: spectra
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/spectra
+            data/spectrum-index.js
+          key: flanguage-spectra-${{ hashFiles('data/catalog.js', 'scripts/build-spectrum.mjs') }}
+
+      - name: Refresh Bandcamp streams
+        run: node scripts/scrape-bandcamp.mjs --include-streams
+
+      - name: Analyze frequency spectra
+        if: steps.spectra.outputs.cache-hit != 'true'
+        run: node scripts/build-spectrum.mjs
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 
 const BAND_URL = "https://flanguage.bandcamp.com";
 const OUTPUT = new URL("../data/catalog.js", import.meta.url);
+const includeStreams = process.argv.includes("--include-streams");
 
 function decodeEntities(value) {
   return value
@@ -75,13 +76,17 @@ const albums = await mapConcurrent(slugs, 4, async (slug) => {
     releaseDate: album.release_date || album.new_date,
     tracks: page.trackinfo
       .filter((track) => track.streaming && !track.unreleased_track)
-      .map((track) => ({
-        id: track.id,
-        number: track.track_num,
-        title: track.title,
-        duration: Math.round(track.duration || 0),
-        url: `${BAND_URL}${track.title_link}`,
-      })),
+      .map((track) => {
+        const stream = track.file?.["mp3-128"];
+        return {
+          id: track.id,
+          number: track.track_num,
+          title: track.title,
+          duration: Math.round(track.duration || 0),
+          url: `${BAND_URL}${track.title_link}`,
+          ...(includeStreams && stream ? { audio: stream } : {}),
+        };
+      }),
   };
 });
 
@@ -106,4 +111,6 @@ const trackCount = albums.reduce(
   (total, album) => total + album.tracks.length,
   0,
 );
-console.log(`Wrote ${albums.length} albums and ${trackCount} tracks.`);
+console.log(
+  `Wrote ${albums.length} albums and ${trackCount} tracks${includeStreams ? " with fresh streams" : ""}.`,
+);

@@ -2,12 +2,17 @@
   "use strict";
 
   const catalog = window.FLANGUAGE_CATALOG;
+  const spectrumIndex = window.FLANGUAGE_SPECTRUM_INDEX;
   if (!catalog?.albums?.length) return;
 
   const elements = {
     albumFilter: document.querySelector("#album-filter"),
+    audio: document.querySelector("#audio"),
+    duration: document.querySelector("#duration"),
+    elapsed: document.querySelector("#elapsed"),
     next: document.querySelector("#next"),
-    player: document.querySelector("#bandcamp-player"),
+    play: document.querySelector("#play"),
+    position: document.querySelector("#position"),
     previous: document.querySelector("#previous"),
     random: document.querySelector("#random"),
     search: document.querySelector("#search"),
@@ -32,9 +37,12 @@
     album: "all",
     current: [...tracks].sort(alphaSort)[0],
     query: "",
-    spectrumKick: 1,
+    spectrumData: null,
+    spectrumMeta: null,
+    spectrumRequest: 0,
   };
 
+  const spectrumFiles = new Map();
   const hashParams = new URLSearchParams(location.hash.slice(1));
   const hashTrack = Number(hashParams.get("track"));
   const hashMatch = tracks.find((track) => track.id === hashTrack);
@@ -55,18 +63,18 @@
       .sort(alphaSort);
   }
 
-  function embedUrl(track) {
-    return [
-      "https://bandcamp.com/EmbeddedPlayer",
-      `track=${track.id}`,
-      "size=small",
-      "artwork=none",
-      "bgcol=000000",
-      "linkcol=ffffff",
-      "fgcol=ffffff",
-      "transparent=false",
-      "",
-    ].join("/");
+  function isPlaying() {
+    return !elements.audio.paused && !elements.audio.ended;
+  }
+
+  function updatePlayButton() {
+    const playing = isPlaying();
+    elements.play.classList.toggle("is-playing", playing);
+    elements.play.setAttribute(
+      "aria-label",
+      playing ? "Pause track" : "Play track",
+    );
+    elements.play.title = playing ? "Pause" : "Play";
   }
 
   function updateHash(track) {
@@ -77,20 +85,99 @@
     history.replaceState(null, "", `#${params}`);
   }
 
-  function selectTrack(track, scroll = false) {
+  function formatTime(seconds) {
+    const safe = Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
+    const minutes = Math.floor(safe / 60);
+    const remainder = Math.floor(safe % 60);
+    return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+  }
+
+  function updatePosition() {
+    const duration = Number.isFinite(elements.audio.duration)
+      ? elements.audio.duration
+      : state.current.duration;
+    const elapsed = Number.isFinite(elements.audio.currentTime)
+      ? elements.audio.currentTime
+      : 0;
+    elements.position.max = String(duration || 0);
+    elements.position.value = String(Math.min(elapsed, duration || 0));
+    elements.elapsed.value = formatTime(elapsed);
+    elements.elapsed.textContent = formatTime(elapsed);
+    elements.duration.value = formatTime(duration);
+    elements.duration.textContent = formatTime(duration);
+  }
+
+  async function loadSpectrum(track) {
+    const request = ++state.spectrumRequest;
+    const meta = spectrumIndex?.tracks?.[track.id];
+    state.spectrumMeta = meta || null;
+    state.spectrumData = null;
+    if (!meta) return;
+
+    try {
+      if (!spectrumFiles.has(meta.file)) {
+        spectrumFiles.set(
+          meta.file,
+          fetch(meta.file).then((response) => {
+            if (!response.ok) {
+              throw new Error(`Spectrum unavailable (${response.status})`);
+            }
+            return response.arrayBuffer();
+          }),
+        );
+      }
+
+      const buffer = await spectrumFiles.get(meta.file);
+      if (request !== state.spectrumRequest) return;
+      const length = meta.frames * spectrumIndex.bands;
+      state.spectrumData = new Uint8Array(buffer, meta.offset, length);
+    } catch {
+      if (request === state.spectrumRequest) {
+        state.spectrumMeta = null;
+        state.spectrumData = null;
+      }
+    }
+  }
+
+  function playCurrent() {
+    if (!state.current.audio) return;
+    if (elements.audio.ended) elements.audio.currentTime = 0;
+    elements.audio.play().catch(updatePlayButton);
+  }
+
+  function selectTrack(track, scroll = true, continuePlayback = isPlaying()) {
     state.current = track;
-    state.spectrumKick = 1;
-    elements.player.src = embedUrl(track);
-    elements.player.title = `Play ${track.title} by Flanguage`;
     document.title = `${track.title} // Flanguage`;
     updateHash(track);
     renderTracks();
+    void loadSpectrum(track);
+
+    elements.audio.pause();
+    elements.audio.currentTime = 0;
+    if (track.audio) {
+      elements.audio.src = track.audio;
+      elements.audio.load();
+      elements.play.disabled = false;
+      if (continuePlayback) playCurrent();
+    } else {
+      elements.audio.removeAttribute("src");
+      elements.audio.load();
+      elements.play.disabled = true;
+    }
+    updatePlayButton();
+    updatePosition();
 
     if (scroll) {
       requestAnimationFrame(() => {
-        elements.trackList
-          .querySelector(".track-row.active")
-          ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        const row = elements.trackList.querySelector(".track-row.active");
+        if (!row) return;
+        const listBounds = elements.trackList.getBoundingClientRect();
+        const rowBounds = row.getBoundingClientRect();
+        elements.trackList.scrollTo({
+          top: elements.trackList.scrollTop + rowBounds.top - listBounds.top,
+          behavior: "smooth",
+        });
+        window.scrollTo({ top: 0, behavior: "smooth" });
       });
     }
   }
@@ -135,12 +222,16 @@
     elements.trackList.append(fragment);
   }
 
-  function adjacentTrack(direction) {
+  function adjacentTrack(direction, continuePlayback = isPlaying()) {
     const pool = visibleTracks();
     if (!pool.length) return;
     const index = pool.findIndex((track) => track.id === state.current.id);
     const start = index < 0 ? 0 : index;
-    selectTrack(pool[(start + direction + pool.length) % pool.length], true);
+    selectTrack(
+      pool[(start + direction + pool.length) % pool.length],
+      true,
+      continuePlayback,
+    );
   }
 
   function randomTrack() {
@@ -151,6 +242,12 @@
       next = pool[(pool.indexOf(next) + 1) % pool.length];
     }
     selectTrack(next, true);
+  }
+
+  function animateDice() {
+    elements.random.classList.remove("is-rolling");
+    void elements.random.offsetWidth;
+    elements.random.classList.add("is-rolling");
   }
 
   function populateChannels() {
@@ -167,7 +264,7 @@
   elements.albumFilter.addEventListener("change", (event) => {
     state.album = event.target.value;
     const first = visibleTracks()[0];
-    if (first) selectTrack(first);
+    if (first) selectTrack(first, true);
     else renderTracks();
   });
 
@@ -182,12 +279,36 @@
     const track = tracks.find(
       (candidate) => candidate.id === Number(row.dataset.trackId),
     );
-    if (track) selectTrack(track);
+    if (track) selectTrack(track, true);
   });
 
+  elements.play.addEventListener("click", () => {
+    if (isPlaying()) elements.audio.pause();
+    else playCurrent();
+  });
   elements.previous.addEventListener("click", () => adjacentTrack(-1));
   elements.next.addEventListener("click", () => adjacentTrack(1));
-  elements.random.addEventListener("click", randomTrack);
+  elements.random.addEventListener("click", () => {
+    animateDice();
+    randomTrack();
+  });
+  elements.random.addEventListener("animationend", () => {
+    elements.random.classList.remove("is-rolling");
+  });
+
+  elements.position.addEventListener("input", () => {
+    if (!Number.isFinite(elements.audio.duration)) return;
+    elements.audio.currentTime = Number(elements.position.value);
+    updatePosition();
+  });
+
+  elements.audio.addEventListener("play", updatePlayButton);
+  elements.audio.addEventListener("pause", updatePlayButton);
+  elements.audio.addEventListener("loadedmetadata", updatePosition);
+  elements.audio.addEventListener("durationchange", updatePosition);
+  elements.audio.addEventListener("timeupdate", updatePosition);
+  elements.audio.addEventListener("ended", () => adjacentTrack(1, true));
+  elements.audio.addEventListener("error", updatePlayButton);
 
   document.addEventListener("dblclick", (event) => event.preventDefault(), {
     passive: false,
@@ -202,6 +323,11 @@
     ) {
       return;
     }
+    if (event.key === " ") {
+      event.preventDefault();
+      if (isPlaying()) elements.audio.pause();
+      else playCurrent();
+    }
     if (event.key === "ArrowLeft") adjacentTrack(-1);
     if (event.key === "ArrowRight") adjacentTrack(1);
     if (event.key.toLocaleLowerCase() === "r") randomTrack();
@@ -210,8 +336,8 @@
   function startSpectrum() {
     const canvas = elements.spectrum;
     const context = canvas.getContext("2d");
-    const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    let phase = 0;
+    const bands = spectrumIndex?.bands || 32;
+    const levels = new Float32Array(bands);
 
     function resize() {
       const ratio = Math.min(devicePixelRatio || 1, 2);
@@ -226,39 +352,50 @@
       const height = canvas.clientHeight;
       context.clearRect(0, 0, width, height);
 
-      const count = Math.max(30, Math.min(64, Math.floor(width / 8)));
-      const gap = 2;
-      const barWidth = Math.max(1, (width - gap * (count - 1)) / count);
-      const seed = state.current.id % 521;
+      const active =
+        isPlaying() && state.spectrumData && state.spectrumMeta && spectrumIndex;
+      let frame = 0;
+      let nextFrame = 0;
+      let blend = 0;
 
-      for (let index = 0; index < count; index += 1) {
-        const normalized = index / Math.max(1, count - 1);
-        const bass = Math.exp(-normalized * 2.1) * 0.32;
-        const middle = Math.sin(normalized * Math.PI) * 0.42;
-        const trackShape =
-          Math.sin(normalized * (6 + (seed % 5)) + seed) * 0.08;
-        const motion =
-          Math.sin(phase * 1.5 + index * 0.55 + seed) * 0.13 +
-          Math.sin(phase * 0.67 + index * 1.37) * 0.07;
-        const amplitude = Math.max(
-          0.03,
-          Math.min(
-            0.96,
-            0.1 +
-              bass +
-              middle +
-              trackShape +
-              motion * state.spectrumKick,
-          ),
+      if (active) {
+        const framePosition = elements.audio.currentTime * spectrumIndex.fps;
+        frame = Math.min(
+          state.spectrumMeta.frames - 1,
+          Math.max(0, Math.floor(framePosition)),
         );
-        const barHeight = Math.max(2, amplitude * (height - 8));
-        const x = index * (barWidth + gap);
-        context.fillStyle = "#fff";
-        context.fillRect(x, height - barHeight, barWidth, barHeight);
+        nextFrame = Math.min(state.spectrumMeta.frames - 1, frame + 1);
+        blend = framePosition - Math.floor(framePosition);
       }
 
-      state.spectrumKick += (0.72 - state.spectrumKick) * 0.018;
-      if (!reducedMotion) phase += 0.04;
+      const gap = 2;
+      const barWidth = Math.max(1, (width - gap * (bands - 1)) / bands);
+
+      for (let index = 0; index < bands; index += 1) {
+        let target = 0;
+        if (active) {
+          const current =
+            state.spectrumData[frame * bands + index] || 0;
+          const next =
+            state.spectrumData[nextFrame * bands + index] || current;
+          const raw = current + (next - current) * blend;
+          const signal = Math.max(0, (raw - 5) / 170);
+          target = signal < 0.035 ? 0 : Math.min(1, signal ** 0.78);
+          levels[index] +=
+            (target - levels[index]) * (target > levels[index] ? 0.42 : 0.18);
+        } else {
+          levels[index] = 0;
+        }
+
+        const barHeight =
+          levels[index] < 0.008 ? 0 : levels[index] * (height - 6);
+        if (barHeight > 0) {
+          const x = index * (barWidth + gap);
+          context.fillStyle = "#fff";
+          context.fillRect(x, height - barHeight, barWidth, barHeight);
+        }
+      }
+
       requestAnimationFrame(draw);
     }
 
@@ -269,5 +406,5 @@
 
   populateChannels();
   startSpectrum();
-  selectTrack(state.current);
+  selectTrack(state.current, false, false);
 })();
