@@ -29,9 +29,23 @@
   const orderedAlbums = [...catalog.albums].sort((left, right) => {
     const leftIndex = channelOrder.indexOf(left.slug);
     const rightIndex = channelOrder.indexOf(right.slug);
+    if (leftIndex >= 0 || rightIndex >= 0) {
+      if (leftIndex < 0) return 1;
+      if (rightIndex < 0) return -1;
+      return leftIndex - rightIndex;
+    }
+
+    const leftDate =
+      Date.parse(left.publishedAt || left.releaseDate || "") || 0;
+    const rightDate =
+      Date.parse(right.publishedAt || right.releaseDate || "") || 0;
     return (
-      (leftIndex < 0 ? channelOrder.length : leftIndex) -
-      (rightIndex < 0 ? channelOrder.length : rightIndex)
+      leftDate - rightDate ||
+      left.title.localeCompare(right.title, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      }) ||
+      left.slug.localeCompare(right.slug)
     );
   });
 
@@ -181,6 +195,7 @@
       const length = meta.frames * spectrumIndex.bands;
       state.spectrumData = new Uint8Array(buffer, meta.offset, length);
     } catch {
+      if (meta?.file) spectrumFiles.delete(meta.file);
       if (request === state.spectrumRequest) {
         state.spectrumMeta = null;
         state.spectrumData = null;
@@ -407,8 +422,15 @@
   function startSpectrum() {
     const canvas = elements.spectrum;
     const context = canvas.getContext("2d");
-    const bands = spectrumIndex?.bands || 32;
+    const bands = spectrumIndex?.bands || fingerprints?.bands || 64;
     const levels = new Float32Array(bands);
+    let renderedTrackId = null;
+    let lastDraw = performance.now();
+
+    function normalize(raw) {
+      const signal = Math.max(0, Math.min(1, (raw - 10) / 170));
+      return signal < 0.04 ? 0 : signal ** 1.08;
+    }
 
     function resize() {
       const ratio = Math.min(devicePixelRatio || 1, 2);
@@ -418,17 +440,27 @@
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
     }
 
-    function draw() {
+    function draw(now) {
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
       context.clearRect(0, 0, width, height);
 
+      if (renderedTrackId !== state.current.id) {
+        levels.fill(0);
+        renderedTrackId = state.current.id;
+      }
+
+      const elapsed = Math.max(
+        1 / 240,
+        Math.min(0.1, (now - lastDraw) / 1000),
+      );
+      lastDraw = now;
+      const attack = 1 - Math.exp(-elapsed / 0.045);
+      const release = 1 - Math.exp(-elapsed / 0.16);
       const active =
         isPlaying() && state.spectrumData && state.spectrumMeta && spectrumIndex;
       const fingerprint = fingerprints?.tracks?.[state.current.id];
       let frame = 0;
-      let nextFrame = 0;
-      let blend = 0;
 
       if (active) {
         const framePosition = elements.audio.currentTime * spectrumIndex.fps;
@@ -436,41 +468,29 @@
           state.spectrumMeta.frames - 1,
           Math.max(0, Math.floor(framePosition)),
         );
-        nextFrame = Math.min(state.spectrumMeta.frames - 1, frame + 1);
-        blend = framePosition - Math.floor(framePosition);
       }
-
-      const gap = 2;
-      const barWidth = Math.max(1, (width - gap * (bands - 1)) / bands);
 
       for (let index = 0; index < bands; index += 1) {
         let target = 0;
         if (active) {
-          const current =
-            state.spectrumData[frame * bands + index] || 0;
-          const next =
-            state.spectrumData[nextFrame * bands + index] || current;
-          const raw = current + (next - current) * blend;
-          const signal = Math.max(0, (raw - 5) / 170);
-          target = signal < 0.035 ? 0 : Math.min(1, signal ** 0.78);
-          levels[index] +=
-            (target - levels[index]) * (target > levels[index] ? 0.42 : 0.18);
+          target = normalize(
+            state.spectrumData[frame * bands + index],
+          );
         } else if (state.embedMode && fingerprint?.length === bands) {
-          const raw = fingerprint[index] || 0;
-          const signal = Math.max(0, (raw - 5) / 170);
-          target = signal < 0.035 ? 0 : Math.min(1, signal ** 0.78);
-          levels[index] +=
-            (target - levels[index]) * (target > levels[index] ? 0.34 : 0.18);
-        } else {
-          levels[index] = 0;
+          target = normalize(fingerprint[index] || 0);
         }
+        levels[index] +=
+          (target - levels[index]) *
+          (target > levels[index] ? attack : release);
 
         const barHeight =
           levels[index] < 0.008 ? 0 : levels[index] * (height - 6);
         if (barHeight > 0) {
-          const x = index * (barWidth + gap);
+          const left = Math.round((index * width) / bands);
+          const right = Math.round(((index + 1) * width) / bands);
+          const barWidth = Math.max(1, right - left - 1);
           context.fillStyle = "#fff";
-          context.fillRect(x, height - barHeight, barWidth, barHeight);
+          context.fillRect(left, height - barHeight, barWidth, barHeight);
         }
       }
 
