@@ -32,8 +32,8 @@ function spectrumFor(track) {
     "stop=6000",
     "drange=72",
     "limit=0",
-    // Frequency is the X axis (32 bars), time is the Y axis (one row/frame).
-    "orientation=vertical",
+    // Horizontal places time on Y (one row/frame) and frequency on X (32 bars).
+    "orientation=horizontal",
   ].join(":");
 
   return new Promise((resolve, reject) => {

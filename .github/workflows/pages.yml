@@ -35,7 +35,8 @@ jobs:
           path: |
             data/spectra
             data/spectrum-index.js
-          key: flanguage-spectra-${{ hashFiles('data/catalog.js', 'scripts/build-spectrum.mjs') }}
+            data/fingerprints.js
+          key: flanguage-audio-data-${{ hashFiles('data/catalog.js', 'scripts/build-spectrum.mjs', 'scripts/build-fingerprints.mjs') }}
 
       - name: Refresh Bandcamp streams
         run: node scripts/scrape-bandcamp.mjs --include-streams
@@ -45,6 +46,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes ffmpeg
+
+      - name: Build track fingerprints
+        if: steps.spectra.outputs.cache-hit != 'true'
+        run: node scripts/build-fingerprints.mjs
 
       - name: Analyze frequency spectra
         if: steps.spectra.outputs.cache-hit != 'true'
