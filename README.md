@@ -11,8 +11,9 @@ The site indexes 17 albums and 271 tracks, with:
 - Alphabetical A–Z browsing across all tracks
 - Previous/next navigation
 - Dice-based random selection within the current channel
-- Song-synchronized 32-band spectrum generated from each track's real audio;
-  no simulated spectrum is shown when audio analysis is unavailable
+- Song-synchronized 32-band spectrum generated from each track's real audio
+- Static real-audio frequency fingerprint for Bandcamp iframe fallback; no
+  simulated or decorative spectrum motion
 - Responsive layouts for phones and desktops
 - iPhone-safe touch controls with double-tap zoom and text selection disabled
 

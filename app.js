@@ -2,6 +2,7 @@
   "use strict";
 
   const catalog = window.FLANGUAGE_CATALOG;
+  const fingerprints = window.FLANGUAGE_FINGERPRINTS;
   const spectrumIndex = window.FLANGUAGE_SPECTRUM_INDEX;
   if (!catalog?.albums?.length) return;
 
@@ -424,6 +425,7 @@
 
       const active =
         isPlaying() && state.spectrumData && state.spectrumMeta && spectrumIndex;
+      const fingerprint = fingerprints?.tracks?.[state.current.id];
       let frame = 0;
       let nextFrame = 0;
       let blend = 0;
@@ -453,6 +455,12 @@
           target = signal < 0.035 ? 0 : Math.min(1, signal ** 0.78);
           levels[index] +=
             (target - levels[index]) * (target > levels[index] ? 0.42 : 0.18);
+        } else if (state.embedMode && fingerprint?.length === bands) {
+          const raw = fingerprint[index] || 0;
+          const signal = Math.max(0, (raw - 5) / 170);
+          target = signal < 0.035 ? 0 : Math.min(1, signal ** 0.78);
+          levels[index] +=
+            (target - levels[index]) * (target > levels[index] ? 0.34 : 0.18);
         } else {
           levels[index] = 0;
         }
