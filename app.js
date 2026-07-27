@@ -5,22 +5,54 @@
   const spectrumIndex = window.FLANGUAGE_SPECTRUM_INDEX;
   if (!catalog?.albums?.length) return;
 
+  const channelOrder = [
+    "flanguage",
+    "flangasms",
+    "flangisms",
+    "flan",
+    "flangussy",
+    "flanthology",
+    "flanghub",
+    "flangdump",
+    "los-flangos",
+    "now-that-s-what-i-call-flanguage-volume-12",
+    "flangwich-ep",
+    "flangaroni",
+    "flangdawg",
+    "flangolingo",
+    "fungalage",
+    "egaugnalf",
+    "flang",
+  ];
+
+  const orderedAlbums = [...catalog.albums].sort((left, right) => {
+    const leftIndex = channelOrder.indexOf(left.slug);
+    const rightIndex = channelOrder.indexOf(right.slug);
+    return (
+      (leftIndex < 0 ? channelOrder.length : leftIndex) -
+      (rightIndex < 0 ? channelOrder.length : rightIndex)
+    );
+  });
+
   const elements = {
     albumFilter: document.querySelector("#album-filter"),
     audio: document.querySelector("#audio"),
+    bandcampPlayer: document.querySelector("#bandcamp-player"),
     duration: document.querySelector("#duration"),
     elapsed: document.querySelector("#elapsed"),
     next: document.querySelector("#next"),
     play: document.querySelector("#play"),
+    playHost: document.querySelector("#play-host"),
     position: document.querySelector("#position"),
     previous: document.querySelector("#previous"),
     random: document.querySelector("#random"),
     search: document.querySelector("#search"),
+    seekRow: document.querySelector("#seek-row"),
     spectrum: document.querySelector("#spectrum"),
     trackList: document.querySelector("#track-list"),
   };
 
-  const tracks = catalog.albums.flatMap((album) =>
+  const tracks = orderedAlbums.flatMap((album) =>
     album.tracks.map((track) => ({ ...track, album })),
   );
 
@@ -37,6 +69,8 @@
     album: "all",
     current: [...tracks].sort(alphaSort)[0],
     query: "",
+    embedMode: false,
+    embedReady: false,
     spectrumData: null,
     spectrumMeta: null,
     spectrumRequest: 0,
@@ -65,6 +99,20 @@
 
   function isPlaying() {
     return !elements.audio.paused && !elements.audio.ended;
+  }
+
+  function embedUrl(track) {
+    return [
+      "https://bandcamp.com/EmbeddedPlayer",
+      `track=${track.id}`,
+      "size=small",
+      "artwork=none",
+      "bgcol=000000",
+      "linkcol=ffffff",
+      "fgcol=ffffff",
+      "transparent=false",
+      "",
+    ].join("/");
   }
 
   function updatePlayButton() {
@@ -155,14 +203,25 @@
     elements.audio.pause();
     elements.audio.currentTime = 0;
     if (track.audio) {
+      state.embedMode = false;
+      state.embedReady = false;
+      elements.playHost.classList.remove("embed-mode");
+      elements.seekRow.hidden = false;
+      elements.bandcampPlayer.removeAttribute("src");
       elements.audio.src = track.audio;
       elements.audio.load();
       elements.play.disabled = false;
       if (continuePlayback) playCurrent();
     } else {
+      state.embedMode = true;
+      state.embedReady = false;
+      elements.playHost.classList.add("embed-mode");
+      elements.seekRow.hidden = true;
+      elements.bandcampPlayer.src = embedUrl(track);
+      elements.bandcampPlayer.title = `Play ${track.title} by Flanguage`;
       elements.audio.removeAttribute("src");
       elements.audio.load();
-      elements.play.disabled = true;
+      elements.play.disabled = false;
     }
     updatePlayButton();
     updatePosition();
@@ -252,7 +311,7 @@
 
   function populateChannels() {
     const fragment = document.createDocumentFragment();
-    catalog.albums.forEach((album, index) => {
+    orderedAlbums.forEach((album, index) => {
       const option = document.createElement("option");
       option.value = album.slug;
       option.textContent = `CH ${String(index + 1).padStart(2, "0")} / ${album.title.toLocaleUpperCase()}`;
@@ -309,6 +368,17 @@
   elements.audio.addEventListener("timeupdate", updatePosition);
   elements.audio.addEventListener("ended", () => adjacentTrack(1, true));
   elements.audio.addEventListener("error", updatePlayButton);
+  elements.bandcampPlayer.addEventListener("load", () => {
+    state.embedReady = true;
+  });
+  window.addEventListener("message", (event) => {
+    if (
+      event.origin === "https://bandcamp.com" &&
+      event.data === "playerinited"
+    ) {
+      state.embedReady = true;
+    }
+  });
 
   document.addEventListener("dblclick", (event) => event.preventDefault(), {
     passive: false,
@@ -354,6 +424,7 @@
 
       const active =
         isPlaying() && state.spectrumData && state.spectrumMeta && spectrumIndex;
+      const embedActive = state.embedMode && state.embedReady;
       let frame = 0;
       let nextFrame = 0;
       let blend = 0;
@@ -383,6 +454,17 @@
           target = signal < 0.035 ? 0 : Math.min(1, signal ** 0.78);
           levels[index] +=
             (target - levels[index]) * (target > levels[index] ? 0.42 : 0.18);
+        } else if (embedActive) {
+          const time = performance.now() / 1000;
+          const normalized = index / Math.max(1, bands - 1);
+          const bass = Math.exp(-normalized * 2.4) * 0.38;
+          const mids = Math.sin(normalized * Math.PI) * 0.33;
+          const motion =
+            Math.sin(time * 4.1 + index * 0.73 + state.current.id) * 0.14 +
+            Math.sin(time * 2.3 + index * 1.37) * 0.09;
+          target = Math.max(0.02, Math.min(0.92, bass + mids + motion));
+          levels[index] +=
+            (target - levels[index]) * (target > levels[index] ? 0.34 : 0.16);
         } else {
           levels[index] = 0;
         }

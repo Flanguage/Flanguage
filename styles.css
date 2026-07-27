@@ -79,13 +79,47 @@ select:focus-visible {
 
 #play {
   display: grid;
+  width: 58px;
+  height: 52px;
   padding: 0;
   place-items: center;
+  border: 1px solid var(--white);
+  color: var(--white);
+  background: var(--black);
 }
 
 #play:disabled {
   cursor: wait;
   opacity: 0.35;
+}
+
+.play-host {
+  display: grid;
+  min-width: 0;
+  height: 52px;
+  place-items: center;
+}
+
+.play-host.embed-mode {
+  overflow: hidden;
+  border: 1px solid var(--white);
+}
+
+.play-host.embed-mode #play {
+  display: none;
+}
+
+#bandcamp-player {
+  display: none;
+  width: 100%;
+  height: 42px;
+  border: 0;
+  background: var(--black);
+  filter: grayscale(1) contrast(1.9) brightness(1.15);
+}
+
+.play-host.embed-mode #bandcamp-player {
+  display: block;
 }
 
 .play-shape {
@@ -118,6 +152,10 @@ select:focus-visible {
   margin-top: 18px;
   font-size: 18px;
   font-variant-numeric: tabular-nums;
+}
+
+.seek-row[hidden] {
+  display: none;
 }
 
 .seek-row output:last-child {
@@ -175,13 +213,15 @@ select:focus-visible {
 }
 
 .transport {
-  display: flex;
-  justify-content: center;
+  display: grid;
+  width: 100%;
+  grid-template-columns: 58px minmax(0, 1fr) 58px;
+  align-items: center;
   gap: 14px;
   margin: 0;
 }
 
-.transport button,
+.transport > button,
 .random-row button {
   display: grid;
   width: 58px;
