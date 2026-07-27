@@ -7,6 +7,8 @@
 
   const channelOrder = [
     "flanguage",
+    "egaugnalf",
+    "fungalage",
     "flangasms",
     "flangisms",
     "flan",
@@ -20,8 +22,6 @@
     "flangaroni",
     "flangdawg",
     "flangolingo",
-    "fungalage",
-    "egaugnalf",
     "flang",
   ];
 
@@ -424,7 +424,6 @@
 
       const active =
         isPlaying() && state.spectrumData && state.spectrumMeta && spectrumIndex;
-      const embedActive = state.embedMode && state.embedReady;
       let frame = 0;
       let nextFrame = 0;
       let blend = 0;
@@ -454,17 +453,6 @@
           target = signal < 0.035 ? 0 : Math.min(1, signal ** 0.78);
           levels[index] +=
             (target - levels[index]) * (target > levels[index] ? 0.42 : 0.18);
-        } else if (embedActive) {
-          const time = performance.now() / 1000;
-          const normalized = index / Math.max(1, bands - 1);
-          const bass = Math.exp(-normalized * 2.4) * 0.38;
-          const mids = Math.sin(normalized * Math.PI) * 0.33;
-          const motion =
-            Math.sin(time * 4.1 + index * 0.73 + state.current.id) * 0.14 +
-            Math.sin(time * 2.3 + index * 1.37) * 0.09;
-          target = Math.max(0.02, Math.min(0.92, bass + mids + motion));
-          levels[index] +=
-            (target - levels[index]) * (target > levels[index] ? 0.34 : 0.16);
         } else {
           levels[index] = 0;
         }

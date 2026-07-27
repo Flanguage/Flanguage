@@ -40,6 +40,12 @@ jobs:
       - name: Refresh Bandcamp streams
         run: node scripts/scrape-bandcamp.mjs --include-streams
 
+      - name: Install audio analyzer
+        if: steps.spectra.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg
+
       - name: Analyze frequency spectra
         if: steps.spectra.outputs.cache-hit != 'true'
         run: node scripts/build-spectrum.mjs
