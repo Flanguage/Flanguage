@@ -61,6 +61,7 @@
     position: document.querySelector("#position"),
     previous: document.querySelector("#previous"),
     random: document.querySelector("#random"),
+    rollDisplay: document.querySelector(".roll-display"),
     search: document.querySelector("#search"),
     seekRow: document.querySelector("#seek-row"),
     spectrum: document.querySelector("#spectrum"),
@@ -70,6 +71,27 @@
   const tracks = orderedAlbums.flatMap((album) =>
     album.tracks.map((track) => ({ ...track, album })),
   );
+
+  const rollWord = "FLANGUAGE";
+  const rollDuration = 900;
+  const rollFrameDuration = rollDuration / rollWord.length;
+  const dotFont = {
+    A: "010101111101101",
+    E: "111100110100111",
+    F: "111100110100100",
+    G: "111100101101111",
+    L: "100100100100111",
+    N: "101111111111101",
+    U: "101101101101111",
+  };
+  let rollFrameTimer;
+
+  const rollDots = Array.from({ length: 15 }, () => {
+    const dot = document.createElement("span");
+    dot.className = "roll-dot";
+    elements.rollDisplay.append(dot);
+    return dot;
+  });
 
   const alphaSort = (left, right) =>
     left.title.localeCompare(right.title, undefined, {
@@ -319,10 +341,28 @@
     selectTrack(next, true);
   }
 
+  function renderRollLetter(letter) {
+    const pattern = dotFont[letter] || "";
+    rollDots.forEach((dot, index) => {
+      dot.classList.toggle("is-on", pattern[index] === "1");
+    });
+  }
+
   function animateDice() {
+    window.clearTimeout(rollFrameTimer);
     elements.random.classList.remove("is-rolling");
     void elements.random.offsetWidth;
     elements.random.classList.add("is-rolling");
+
+    let frame = 0;
+    const animateLetter = () => {
+      renderRollLetter(rollWord[frame]);
+      frame += 1;
+      if (frame < rollWord.length) {
+        rollFrameTimer = window.setTimeout(animateLetter, rollFrameDuration);
+      }
+    };
+    animateLetter();
   }
 
   function populateChannels() {
@@ -367,8 +407,10 @@
     animateDice();
     randomTrack();
   });
-  elements.random.addEventListener("animationend", () => {
+  elements.random.addEventListener("animationend", (event) => {
+    if (event.target !== elements.random) return;
     elements.random.classList.remove("is-rolling");
+    window.clearTimeout(rollFrameTimer);
   });
 
   elements.position.addEventListener("input", () => {
