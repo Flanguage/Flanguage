@@ -247,22 +247,50 @@ select:focus-visible {
   margin-bottom: 24px;
 }
 
-.random-row button.is-rolling .dice {
-  animation: dice-roll 420ms steps(6, end);
+.random-row button.is-rolling {
+  animation: dot-roll 900ms steps(9, end);
 }
 
-@keyframes dice-roll {
+.random-row button.is-rolling .dice {
+  display: none;
+}
+
+.roll-display {
+  display: none;
+  grid-template-columns: repeat(3, 4px);
+  grid-template-rows: repeat(5, 4px);
+  width: 31px;
+  height: 31px;
+  gap: 3px;
+  place-content: center;
+}
+
+.random-row button.is-rolling .roll-display {
+  display: grid;
+}
+
+.roll-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.14;
+}
+
+.roll-dot.is-on {
+  opacity: 1;
+  box-shadow: 0 0 4px currentColor;
+}
+
+@keyframes dot-roll {
   0% {
-    transform: rotate(0deg) scale(1);
+    transform: scale(0.88);
   }
-  35% {
-    transform: rotate(125deg) scale(0.78);
-  }
-  70% {
-    transform: rotate(255deg) scale(1.12);
+  50% {
+    transform: scale(1.08);
   }
   100% {
-    transform: rotate(360deg) scale(1);
+    transform: scale(1);
   }
 }
 
