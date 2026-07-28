@@ -61,7 +61,7 @@
     position: document.querySelector("#position"),
     previous: document.querySelector("#previous"),
     random: document.querySelector("#random"),
-    rollDisplay: document.querySelector(".roll-display"),
+    rollDots: document.querySelector(".roll-dots"),
     search: document.querySelector("#search"),
     seekRow: document.querySelector("#seek-row"),
     spectrum: document.querySelector("#spectrum"),
@@ -84,12 +84,33 @@
     N: "101111111111101",
     U: "101101101101111",
   };
+  const rollDotPositions = [
+    [12, 7],
+    [20, 7],
+    [28, 7],
+    [12, 13.5],
+    [20, 13.5],
+    [28, 13.5],
+    [12, 20],
+    [20, 20],
+    [28, 20],
+    [12, 26.5],
+    [20, 26.5],
+    [28, 26.5],
+    [12, 33],
+    [20, 33],
+    [28, 33],
+  ];
   let rollFrameTimer;
+  let rollCompleteTimer;
 
-  const rollDots = Array.from({ length: 15 }, () => {
-    const dot = document.createElement("span");
-    dot.className = "roll-dot";
-    elements.rollDisplay.append(dot);
+  const rollDots = rollDotPositions.map(([x, y]) => {
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("class", "roll-dot");
+    dot.setAttribute("cx", x);
+    dot.setAttribute("cy", y);
+    dot.setAttribute("r", "2.5");
+    elements.rollDots.append(dot);
     return dot;
   });
 
@@ -348,11 +369,15 @@
     });
   }
 
+  function finishDiceRoll() {
+    window.clearTimeout(rollFrameTimer);
+    window.clearTimeout(rollCompleteTimer);
+    renderRollLetter("F");
+  }
+
   function animateDice() {
     window.clearTimeout(rollFrameTimer);
-    elements.random.classList.remove("is-rolling");
-    void elements.random.offsetWidth;
-    elements.random.classList.add("is-rolling");
+    window.clearTimeout(rollCompleteTimer);
 
     let frame = 0;
     const animateLetter = () => {
@@ -363,6 +388,7 @@
       }
     };
     animateLetter();
+    rollCompleteTimer = window.setTimeout(finishDiceRoll, rollDuration);
   }
 
   function populateChannels() {
@@ -407,12 +433,6 @@
     animateDice();
     randomTrack();
   });
-  elements.random.addEventListener("animationend", (event) => {
-    if (event.target !== elements.random) return;
-    elements.random.classList.remove("is-rolling");
-    window.clearTimeout(rollFrameTimer);
-  });
-
   elements.position.addEventListener("input", () => {
     if (!Number.isFinite(elements.audio.duration)) return;
     elements.audio.currentTime = Number(elements.position.value);
@@ -544,6 +564,7 @@
     requestAnimationFrame(draw);
   }
 
+  renderRollLetter("F");
   populateChannels();
   startSpectrum();
   selectTrack(state.current, false, false);

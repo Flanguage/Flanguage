@@ -31,7 +31,7 @@
         `data/spectrum-index.js?catalog=${catalogRevision}&fresh=${fresh}`,
       ),
     ]);
-    await loadScript(`app.js?v=11&catalog=${catalogRevision}`);
+    await loadScript(`app.js?v=12&catalog=${catalogRevision}`);
   }
 
   start().catch(() => {
