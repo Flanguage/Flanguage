@@ -247,51 +247,25 @@ select:focus-visible {
   margin-bottom: 24px;
 }
 
-.random-row button.is-rolling {
-  animation: dot-roll 900ms steps(9, end);
-}
-
-.random-row button.is-rolling .dice {
-  display: none;
-}
-
 .roll-display {
-  display: none;
-  grid-template-columns: repeat(3, 4px);
-  grid-template-rows: repeat(5, 4px);
   width: 31px;
   height: 31px;
-  gap: 3px;
-  place-content: center;
+  overflow: visible;
 }
 
-.random-row button.is-rolling .roll-display {
-  display: grid;
+.roll-display rect {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
 }
 
 .roll-dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.14;
+  fill: currentColor;
+  opacity: 0;
 }
 
 .roll-dot.is-on {
   opacity: 1;
-  box-shadow: 0 0 4px currentColor;
-}
-
-@keyframes dot-roll {
-  0% {
-    transform: scale(0.88);
-  }
-  50% {
-    transform: scale(1.08);
-  }
-  100% {
-    transform: scale(1);
-  }
 }
 
 .previous-shape,
@@ -336,22 +310,6 @@ select:focus-visible {
 
 .next-shape::after {
   right: 3px;
-}
-
-.dice {
-  width: 31px;
-  height: 31px;
-  overflow: visible;
-}
-
-.dice rect {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-}
-
-.dice circle {
-  fill: currentColor;
 }
 
 .directory {

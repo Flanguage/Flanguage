@@ -22,7 +22,7 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23000'/%3E%3Cpath d='M12 12h40v8H22v10h24v8H22v14H12z' fill='%23fff'/%3E%3C/svg%3E"
     >
-    <link rel="stylesheet" href="styles.css?v=6">
+    <link rel="stylesheet" href="styles.css?v=7">
   </head>
   <body>
     <main class="terminal" aria-label="Flanguage music terminal">
@@ -73,19 +73,14 @@
         <div class="random-row">
           <button id="random" type="button" aria-label="Random track">
             <svg
-              class="dice"
+              class="roll-display"
               viewBox="0 0 40 40"
               role="presentation"
               aria-hidden="true"
             >
               <rect x="3" y="3" width="34" height="34" rx="2"></rect>
-              <circle cx="12" cy="12" r="2.5"></circle>
-              <circle cx="28" cy="12" r="2.5"></circle>
-              <circle cx="20" cy="20" r="2.5"></circle>
-              <circle cx="12" cy="28" r="2.5"></circle>
-              <circle cx="28" cy="28" r="2.5"></circle>
+              <g class="roll-dots"></g>
             </svg>
-            <span class="roll-display" aria-hidden="true"></span>
           </button>
         </div>
       </section>
@@ -125,6 +120,6 @@
       </p>
     </noscript>
 
-    <script src="bootstrap.js?v=2"></script>
+    <script src="bootstrap.js?v=3"></script>
   </body>
 </html>
