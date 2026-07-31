@@ -6,6 +6,13 @@
   const spectrumIndex = window.FLANGUAGE_SPECTRUM_INDEX;
   if (!catalog?.albums?.length) return;
 
+  const webampScript = {
+    source: "vendor/webamp-2.3.1.min.js",
+    integrity:
+      "sha384-9waE2xOw4VkyDDXbmumm9jR3ovD2w9gGl0+ehyi66rJSOPx9lyNxs8+jSS2HruM6",
+  };
+  const modeStorageKey = "flanguage-player-mode";
+
   const channelOrder = [
     "flanguage",
     "egaugnalf",
@@ -53,19 +60,33 @@
     albumFilter: document.querySelector("#album-filter"),
     audio: document.querySelector("#audio"),
     bandcampPlayer: document.querySelector("#bandcamp-player"),
+    directory: document.querySelector("#terminal-directory"),
     duration: document.querySelector("#duration"),
     elapsed: document.querySelector("#elapsed"),
-    next: document.querySelector("#next"),
-    play: document.querySelector("#play"),
+    next: document.querySelector("#terminal-next"),
+    play: document.querySelector("#terminal-play"),
     playHost: document.querySelector("#play-host"),
-    position: document.querySelector("#position"),
-    previous: document.querySelector("#previous"),
+    position: document.querySelector("#terminal-position"),
+    previous: document.querySelector("#terminal-previous"),
     random: document.querySelector("#random"),
     rollDots: document.querySelector(".roll-dots"),
     search: document.querySelector("#search"),
     seekRow: document.querySelector("#seek-row"),
+    skinSelect: document.querySelector("#skin-select"),
+    skinSource: document.querySelector("#skin-source"),
+    skinStatus: document.querySelector("#skin-status"),
+    skinUrl: document.querySelector("#skin-url"),
     spectrum: document.querySelector("#spectrum"),
+    terminalMode: document.querySelector("#terminal-mode"),
+    terminalPlayer: document.querySelector("#terminal-player"),
     trackList: document.querySelector("#track-list"),
+    webampHost: document.querySelector("#webamp-host"),
+    webampAudio: document.querySelector("#winamp-audio"),
+    webampMode: document.querySelector("#winamp-mode"),
+    webampPlayer: document.querySelector("#winamp-player"),
+    webampPlaceholder: document.querySelector("#webamp-placeholder"),
+    loadSkin: document.querySelector("#load-skin"),
+    randomSkin: document.querySelector("#random-skin"),
   };
 
   const tracks = orderedAlbums.flatMap((album) =>
@@ -123,19 +144,43 @@
       sensitivity: "base",
     });
 
+  const hashParams = new URLSearchParams(location.hash.slice(1));
+
+  function readStorage(key) {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  function writeStorage(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // Storage can be unavailable in private browsing; the mode still works.
+    }
+  }
+
+  const requestedMode = hashParams.get("mode") || readStorage(modeStorageKey);
+  const initialMode = requestedMode === "winamp" ? "winamp" : "terminal";
+
   const state = {
     album: "all",
     current: [...tracks].sort(alphaSort)[0],
     query: "",
+    mode: initialMode,
     embedMode: false,
     embedReady: false,
     spectrumData: null,
     spectrumMeta: null,
     spectrumRequest: 0,
+    winamp: null,
+    winampPromise: null,
+    webampScriptPromise: null,
   };
 
   const spectrumFiles = new Map();
-  const hashParams = new URLSearchParams(location.hash.slice(1));
   const hashTrack = Number(hashParams.get("track"));
   const hashMatch = tracks.find((track) => track.id === hashTrack);
   if (hashMatch) state.current = hashMatch;
@@ -187,6 +232,7 @@
     const params = new URLSearchParams({
       album: track.album.slug,
       track: String(track.id),
+      mode: state.mode,
     });
     history.replaceState(null, "", `#${params}`);
   }
@@ -246,13 +292,172 @@
     }
   }
 
+  function reflectWinampTrack(trackId) {
+    const track = tracks.find((candidate) => candidate.id === trackId);
+    if (!track) return;
+    state.current = track;
+    document.title = `${track.title} // Flanguage`;
+    updateHash(track);
+    renderTracks();
+    void loadSpectrum(track);
+  }
+
+  function getWinampSpectrumFrame(trackId, time) {
+    if (
+      state.current.id !== trackId ||
+      !state.spectrumData ||
+      !state.spectrumMeta ||
+      !spectrumIndex
+    ) {
+      return null;
+    }
+
+    const frame = Math.min(
+      state.spectrumMeta.frames - 1,
+      Math.max(0, Math.floor(time * spectrumIndex.fps)),
+    );
+    const start = frame * spectrumIndex.bands;
+    return state.spectrumData.subarray(start, start + spectrumIndex.bands);
+  }
+
+  function loadWebampLibrary() {
+    if (window.Webamp) return Promise.resolve(window.Webamp);
+    if (state.webampScriptPromise) return state.webampScriptPromise;
+
+    state.webampScriptPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = `${webampScript.source}?v=2.3.1`;
+      script.integrity = webampScript.integrity;
+      script.addEventListener(
+        "load",
+        () => {
+          if (window.Webamp) resolve(window.Webamp);
+          else reject(new Error("WEBAMP DID NOT INITIALIZE_"));
+        },
+        { once: true },
+      );
+      script.addEventListener(
+        "error",
+        () => reject(new Error("WEBAMP LIBRARY COULD NOT LOAD_")),
+        { once: true },
+      );
+      document.head.append(script);
+    }).catch((error) => {
+      state.webampScriptPromise = null;
+      throw error;
+    });
+
+    return state.webampScriptPromise;
+  }
+
+  async function ensureWinamp() {
+    if (state.winamp) return state.winamp;
+    if (state.winampPromise) return state.winampPromise;
+
+    elements.skinStatus.textContent = "LOADING WEBAMP 2.3.1_";
+    elements.skinStatus.classList.remove("error");
+    elements.webampPlaceholder.hidden = false;
+    state.winampPromise = (async () => {
+      await loadWebampLibrary();
+      if (typeof window.createFlanguageWinampMode !== "function") {
+        throw new Error("WINAMP MODE MODULE COULD NOT LOAD_");
+      }
+
+      const controller = await window.createFlanguageWinampMode({
+        audio: elements.webampAudio,
+        getSpectrumFrame: getWinampSpectrumFrame,
+        host: elements.webampHost,
+        initialTrackId: state.current.id,
+        loadSkinButton: elements.loadSkin,
+        onTrackChange(trackId) {
+          if (state.mode === "winamp") reflectWinampTrack(trackId);
+        },
+        placeholder: elements.webampPlaceholder,
+        randomSkinButton: elements.randomSkin,
+        skinSelect: elements.skinSelect,
+        skinSource: elements.skinSource,
+        skinStatus: elements.skinStatus,
+        skinUrlInput: elements.skinUrl,
+        tracks,
+      });
+      state.winamp = controller;
+      return controller;
+    })().catch((error) => {
+      state.winampPromise = null;
+      elements.skinStatus.textContent = error.message || "WINAMP MODE FAILED_";
+      elements.skinStatus.classList.add("error");
+      elements.webampPlaceholder.textContent = "USE TERMINAL MODE_";
+      throw error;
+    });
+
+    return state.winampPromise;
+  }
+
+  function renderMode() {
+    const winamp = state.mode === "winamp";
+    elements.terminalPlayer.hidden = winamp;
+    elements.directory.hidden = winamp;
+    elements.webampPlayer.hidden = !winamp;
+    elements.terminalMode.classList.toggle("active", !winamp);
+    elements.webampMode.classList.toggle("active", winamp);
+    elements.terminalMode.setAttribute("aria-pressed", String(!winamp));
+    elements.webampMode.setAttribute("aria-pressed", String(winamp));
+  }
+
+  async function setMode(mode) {
+    const nextMode = mode === "winamp" ? "winamp" : "terminal";
+    const changed = state.mode !== nextMode;
+
+    if (nextMode === "winamp") {
+      elements.audio.pause();
+      elements.bandcampPlayer.removeAttribute("src");
+      state.embedReady = false;
+    } else {
+      state.winamp?.pause();
+    }
+
+    state.mode = nextMode;
+    writeStorage(modeStorageKey, nextMode);
+    renderMode();
+    updateHash(state.current);
+
+    if (nextMode === "winamp") {
+      try {
+        const winamp = await ensureWinamp();
+        if (state.mode !== "winamp") {
+          winamp.pause();
+          return;
+        }
+        winamp.selectTrack(state.current.id, false);
+      } catch {
+        // The visible status explains the failure; Terminal remains one tap away.
+      }
+      return;
+    }
+
+    if (changed || !elements.audio.src) {
+      selectTrack(state.current, false, false);
+    }
+  }
+
   function playCurrent() {
+    if (state.mode === "winamp") {
+      state.winamp?.play();
+      return;
+    }
     if (!state.current.audio) return;
     if (elements.audio.ended) elements.audio.currentTime = 0;
     elements.audio.play().catch(updatePlayButton);
   }
 
   function selectTrack(track, scroll = true, continuePlayback = isPlaying()) {
+    if (state.mode === "winamp") {
+      const continueWinamp = state.winamp?.isPlaying() || false;
+      reflectWinampTrack(track.id);
+      state.winamp?.selectTrack(track.id, continueWinamp);
+      return;
+    }
+
     state.current = track;
     document.title = `${track.title} // Flanguage`;
     updateHash(track);
@@ -341,6 +546,12 @@
   }
 
   function adjacentTrack(direction, continuePlayback = isPlaying()) {
+    if (state.mode === "winamp") {
+      if (direction < 0) state.winamp?.previous();
+      else state.winamp?.next();
+      return;
+    }
+
     const pool = visibleTracks();
     if (!pool.length) return;
     const index = pool.findIndex((track) => track.id === state.current.id);
@@ -353,6 +564,11 @@
   }
 
   function randomTrack() {
+    if (state.mode === "winamp") {
+      state.winamp?.random();
+      return;
+    }
+
     const pool = visibleTracks();
     if (!pool.length) return;
     let next = pool[Math.floor(Math.random() * pool.length)];
@@ -402,6 +618,13 @@
     elements.albumFilter.append(fragment);
   }
 
+  elements.terminalMode.addEventListener("click", () => {
+    void setMode("terminal");
+  });
+  elements.webampMode.addEventListener("click", () => {
+    void setMode("winamp");
+  });
+
   elements.albumFilter.addEventListener("change", (event) => {
     state.album = event.target.value;
     const first = visibleTracks()[0];
@@ -444,7 +667,9 @@
   elements.audio.addEventListener("loadedmetadata", updatePosition);
   elements.audio.addEventListener("durationchange", updatePosition);
   elements.audio.addEventListener("timeupdate", updatePosition);
-  elements.audio.addEventListener("ended", () => adjacentTrack(1, true));
+  elements.audio.addEventListener("ended", () => {
+    if (state.mode === "terminal") adjacentTrack(1, true);
+  });
   elements.audio.addEventListener("error", updatePlayButton);
   elements.bandcampPlayer.addEventListener("load", () => {
     state.embedReady = true;
@@ -463,6 +688,7 @@
   });
 
   document.addEventListener("keydown", (event) => {
+    if (event.target.closest?.("#webamp")) return;
     if (
       event.target.matches("input, select, button") ||
       event.metaKey ||
@@ -471,6 +697,19 @@
     ) {
       return;
     }
+
+    if (state.mode === "winamp") {
+      if (event.key === " ") {
+        event.preventDefault();
+        if (state.winamp?.isPlaying()) state.winamp.pause();
+        else state.winamp?.play();
+      }
+      if (event.key === "ArrowLeft") state.winamp?.previous();
+      if (event.key === "ArrowRight") state.winamp?.next();
+      if (event.key.toLocaleLowerCase() === "r") state.winamp?.random();
+      return;
+    }
+
     if (event.key === " ") {
       event.preventDefault();
       if (isPlaying()) elements.audio.pause();
@@ -567,5 +806,11 @@
   renderRollLetter("F");
   populateChannels();
   startSpectrum();
-  selectTrack(state.current, false, false);
+  renderMode();
+  if (state.mode === "winamp") {
+    reflectWinampTrack(state.current.id);
+    void setMode("winamp");
+  } else {
+    selectTrack(state.current, false, false);
+  }
 })();
