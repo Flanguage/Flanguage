@@ -7,6 +7,9 @@ The site discovers the complete catalog automatically, with:
 
 - Bandcamp-backed playback with a native-audio path and official embed fallback
 - Black-and-white, artwork-free transport controls
+- Opt-in Webamp mode with classic Archive.org Winamp skins and playlist UI
+- Fear skin by default, curated skin randomizer, and support for pasted
+  Archive.org skin item URLs
 - Terminal-themed album channels and catalog search
 - Alphabetical A–Z browsing across all tracks
 - Previous/next navigation
@@ -17,6 +20,23 @@ The site discovers the complete catalog automatically, with:
   simulated or decorative spectrum motion
 - Responsive layouts for phones and desktops
 - iPhone-safe touch controls with double-tap zoom and text selection disabled
+
+## Winamp skin mode
+
+Switch `PLAYER_MODE` from `TERMINAL` to `WINAMP` to load the self-hosted Webamp
+2.3.1 player. Classic `.wsz` files are resolved from Archive.org item metadata,
+downloaded through Archive.org's CORS endpoint, limited to 5 MB, and cached in
+the browser. Individual skins are not copied into this repository; the mode
+keeps the current Archive.org item and creator visible in the interface.
+
+The Webamp audio adapter deliberately uses a separate native audio element so
+Bandcamp streams still play without cross-origin Web Audio access. Its built-in
+analyzer is driven by this project's song-synchronized spectrum data rather
+than decorative animation. Terminal mode remains the default and fallback,
+including for Bandcamp iframe-only tracks and iOS background playback.
+
+Webamp is MIT-licensed; its license is included in
+`vendor/WEBAMP-LICENSE.txt`.
 
 ## Updating the catalog
 

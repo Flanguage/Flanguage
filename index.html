@@ -22,18 +22,40 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23000'/%3E%3Cpath d='M12 12h40v8H22v10h24v8H22v14H12z' fill='%23fff'/%3E%3C/svg%3E"
     >
-    <link rel="stylesheet" href="styles.css?v=7">
+    <link rel="stylesheet" href="styles.css?v=8">
   </head>
   <body>
     <main class="terminal" aria-label="Flanguage music terminal">
-      <section class="player">
+      <header class="mode-switcher">
+        <span class="mode-label" aria-hidden="true">PLAYER_MODE:</span>
+        <div class="mode-buttons" role="group" aria-label="Player mode">
+          <button
+            id="terminal-mode"
+            class="mode-button active"
+            type="button"
+            aria-pressed="true"
+          >TERMINAL</button>
+          <button
+            id="winamp-mode"
+            class="mode-button"
+            type="button"
+            aria-pressed="false"
+          >WINAMP</button>
+        </div>
+      </header>
+
+      <section id="terminal-player" class="player">
         <nav class="transport" aria-label="Playback">
-          <button id="previous" type="button" aria-label="Previous track">
+          <button
+            id="terminal-previous"
+            type="button"
+            aria-label="Previous track"
+          >
             <span class="previous-shape" aria-hidden="true"></span>
           </button>
 
           <div id="play-host" class="play-host">
-            <button id="play" type="button" aria-label="Play track">
+            <button id="terminal-play" type="button" aria-label="Play track">
               <span class="play-shape" aria-hidden="true"></span>
             </button>
             <iframe
@@ -44,16 +66,16 @@
             ></iframe>
           </div>
 
-          <button id="next" type="button" aria-label="Next track">
+          <button id="terminal-next" type="button" aria-label="Next track">
             <span class="next-shape" aria-hidden="true"></span>
           </button>
         </nav>
         <audio id="audio" preload="metadata"></audio>
 
         <div id="seek-row" class="seek-row">
-          <output id="elapsed" for="position">00:00</output>
+          <output id="elapsed" for="terminal-position">00:00</output>
           <input
-            id="position"
+            id="terminal-position"
             type="range"
             min="0"
             max="0"
@@ -61,7 +83,7 @@
             value="0"
             aria-label="Song position"
           >
-          <output id="duration" for="position">00:00</output>
+          <output id="duration" for="terminal-position">00:00</output>
         </div>
 
         <canvas
@@ -85,7 +107,78 @@
         </div>
       </section>
 
-      <section class="directory" aria-label="Track directory">
+      <section
+        id="winamp-player"
+        class="winamp-player"
+        aria-label="Archive.org Winamp skin player"
+        hidden
+      >
+        <div class="skin-controls">
+          <label class="skin-select-wrap">
+            <span>ARCHIVE_SKIN:</span>
+            <select id="skin-select" aria-label="Archive.org Winamp skin">
+              <option value="winampskin_fear">FEAR</option>
+              <option value="winampskin_Winamp_Classic_CM">
+                WINAMP CLASSIC [CM]
+              </option>
+              <option value="winampskins_Aiwa__NSX__S90_3.0">
+                AIWA NSX S90
+              </option>
+              <option value="winampskins_The_Silence_1">
+                THE SILENCE
+              </option>
+              <option value="winampskins_default_2">DEFAULT.WSZ</option>
+            </select>
+          </label>
+          <button id="random-skin" type="button">RANDOM</button>
+        </div>
+
+        <div class="skin-url-row">
+          <label class="skin-url-wrap">
+            <span class="sr-only">Archive.org skin item URL or identifier</span>
+            <span class="prompt" aria-hidden="true">&gt;</span>
+            <input
+              id="skin-url"
+              type="url"
+              inputmode="url"
+              placeholder="PASTE ARCHIVE.ORG SKIN URL_"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+            >
+          </label>
+          <button id="load-skin" type="button">LOAD</button>
+        </div>
+
+        <p id="skin-status" class="skin-status" role="status" aria-live="polite">
+          WINAMP PLAYER STANDBY_
+        </p>
+        <audio id="winamp-audio" preload="metadata" playsinline></audio>
+        <div id="webamp-host" class="webamp-host">
+          <p id="webamp-placeholder" class="webamp-placeholder">
+            LOADING WINAMP_
+          </p>
+        </div>
+        <div class="skin-links">
+          <a
+            id="skin-source"
+            href="https://archive.org/details/winampskin_fear"
+            target="_blank"
+            rel="noopener noreferrer"
+          >CURRENT SKIN / ARCHIVE.ORG</a>
+          <a
+            href="https://archive.org/details/winampskins"
+            target="_blank"
+            rel="noopener noreferrer"
+          >BROWSE SKINS</a>
+        </div>
+      </section>
+
+      <section
+        id="terminal-directory"
+        class="directory"
+        aria-label="Track directory"
+      >
         <div class="input-row">
           <label class="select-wrap">
             <span class="sr-only">Channel</span>
@@ -120,6 +213,6 @@
       </p>
     </noscript>
 
-    <script src="bootstrap.js?v=3"></script>
+    <script src="bootstrap.js?v=4"></script>
   </body>
 </html>
