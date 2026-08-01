@@ -1,16 +1,39 @@
 (() => {
   "use strict";
 
-  const defaultSkinIdentifier = "winampskin_fear";
+  const museumEndpoint = "https://skins.webamp.org/graphql";
+  const museumCdnOrigin = "https://r2.webampskins.org";
+  const fearSkinMd5 = "9939a355baa122d98bda12e99b22bcc7";
+  const catalogTargetSize = 500;
+  const randomBatchSize = 24;
   const maxSkinBytes = 5_000_000;
-  const skinCacheName = "flanguage-winamp-skins-v1";
-  const skinStorageKey = "flanguage-winamp-skin";
-  const fearSkinFallback = {
-    identifier: defaultSkinIdentifier,
-    title: "Winamp Skin: fear",
-    creator: "jaybeez",
-    skinUrl: "https://archive.org/cors/winampskin_fear/fear.wsz",
-  };
+  const maxCachedSkins = 24;
+  const skinCacheName = "flanguage-webamp-skins-v2";
+  const skinStorageKey = "flanguage-winamp-museum-skin";
+  const legacySkinStorageKey = "flanguage-winamp-skin";
+  const catalogQuery = `
+    query Catalog($first: Int!, $offset: Int!) {
+      skins(first: $first, offset: $offset, sort: MUSEUM) {
+        count
+        nodes {
+          md5
+          filename(normalize_extension: true)
+          download_url
+          nsfw
+        }
+      }
+    }
+  `;
+  const skinByMd5Query = `
+    query SkinByMd5($md5: String!) {
+      fetch_skin_by_md5(md5: $md5) {
+        md5
+        filename(normalize_extension: true)
+        download_url
+        nsfw
+      }
+    }
+  `;
 
   class TinyEmitter {
     constructor() {
@@ -109,8 +132,14 @@
   }
 
   function createMediaClass(options) {
-    const { audio, getSpectrumFrame, setActiveTrack, trackByUrl, setStatus } =
-      options;
+    const {
+      audio,
+      getSpectrumFrame,
+      onEnded,
+      setActiveTrack,
+      trackByUrl,
+      setStatus,
+    } = options;
 
     return class FlanguageWebampMedia {
       constructor() {
@@ -141,7 +170,10 @@
         this.listen("waiting", () => this.emitter.trigger("waiting"));
         this.listen("stalled", () => this.emitter.trigger("waiting"));
         this.listen("canplay", () => this.emitter.trigger("stopWaiting"));
-        this.listen("ended", () => this.emitter.trigger("ended"));
+        this.listen("ended", () => {
+          this.emitter.trigger("ended");
+          onEnded(this.activeTrackId);
+        });
         this.listen("error", () => {
           this.emitter.trigger("stopWaiting");
           setStatus("AUDIO STREAM ERROR. TRY TERMINAL MODE_", true);
@@ -253,155 +285,359 @@
     }
   }
 
-  function parseArchiveIdentifier(value) {
-    const input = String(value || "").trim();
-    if (!input) throw new Error("PASTE AN ARCHIVE.ORG SKIN URL_");
-
-    let identifier = input;
-    if (input.includes("://")) {
-      const url = new URL(input);
-      const hostname = url.hostname.toLocaleLowerCase();
-      if (hostname !== "archive.org" && !hostname.endsWith(".archive.org")) {
-        throw new Error("ONLY ARCHIVE.ORG SKINS ARE ALLOWED_");
-      }
-
-      const parts = url.pathname.split("/").filter(Boolean);
-      const marker = parts.findIndex((part) =>
-        ["details", "download", "cors", "metadata", "embed"].includes(part),
-      );
-      if (marker < 0 || !parts[marker + 1]) {
-        throw new Error("ARCHIVE ITEM NOT FOUND IN URL_");
-      }
-      identifier = decodeURIComponent(parts[marker + 1]);
-    }
-
-    if (!/^[a-z0-9._-]+$/i.test(identifier)) {
-      throw new Error("INVALID ARCHIVE ITEM IDENTIFIER_");
-    }
-    return identifier;
+  function isSkinMd5(value) {
+    return /^[a-f0-9]{32}$/.test(String(value || "").toLowerCase());
   }
 
-  function firstValue(value) {
-    return Array.isArray(value) ? value[0] : value;
+  function canonicalSkinUrl(md5) {
+    const normalized = String(md5 || "").toLowerCase();
+    if (!isSkinMd5(normalized)) throw new Error("INVALID SKIN IDENTIFIER_");
+    return `${museumCdnOrigin}/skins/${normalized}.wsz`;
   }
 
-  function archiveSkinUrl(value, identifier) {
-    const url = new URL(value);
-    const parts = url.pathname.split("/").filter(Boolean);
-    if (
-      url.protocol !== "https:" ||
-      url.hostname !== "archive.org" ||
-      parts[0] !== "cors" ||
-      decodeURIComponent(parts[1] || "") !== identifier ||
-      !parts[2]
-    ) {
-      throw new Error("ARCHIVE RETURNED AN UNSAFE SKIN URL_");
-    }
-    return url.href;
+  function cleanSkinName(value, md5) {
+    const name = String(value || "")
+      .replace(/\.wsz$/i, "")
+      .replace(/[\u0000-\u001f\u007f]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return (name || `SKIN ${md5.slice(0, 8)}`).slice(0, 80);
   }
 
-  function encodeArchivePath(path) {
-    return String(path)
-      .split("/")
-      .map((part) => encodeURIComponent(part))
-      .join("/");
-  }
+  function normalizeMuseumSkin(node) {
+    if (!node || node.nsfw !== false) return null;
+    const md5 = String(node.md5 || "").toLowerCase();
+    if (!isSkinMd5(md5)) return null;
 
-  async function resolveArchiveSkin(value) {
-    const identifier = parseArchiveIdentifier(value);
-    let data;
+    const skinUrl = canonicalSkinUrl(md5);
+    if (String(node.download_url || "") !== skinUrl) return null;
 
     try {
-      const response = await fetch(
-        `https://archive.org/metadata/${encodeURIComponent(identifier)}`,
-        { mode: "cors" },
-      );
-      if (!response.ok) throw new Error(`METADATA ${response.status}`);
-      data = await response.json();
-    } catch (error) {
-      if (identifier === defaultSkinIdentifier) return fearSkinFallback;
-      throw new Error(`ARCHIVE METADATA UNAVAILABLE: ${error.message}_`);
-    }
-
-    const metadata = data?.metadata || {};
-    let skinUrl;
-    const webampLink = firstValue(metadata.webamp);
-    if (webampLink) {
-      try {
-        skinUrl = new URL(webampLink).searchParams.get("skinUrl");
-      } catch {
-        skinUrl = null;
+      const parsed = new URL(skinUrl);
+      if (
+        parsed.protocol !== "https:" ||
+        parsed.origin !== museumCdnOrigin ||
+        parsed.pathname !== `/skins/${md5}.wsz` ||
+        parsed.search ||
+        parsed.hash
+      ) {
+        return null;
       }
+    } catch {
+      return null;
     }
 
-    if (!skinUrl) {
-      const files = Array.isArray(data?.files) ? data.files : [];
-      const skinFile =
-        files.find(
-          (file) =>
-            file?.source === "original" && /\.wsz$/i.test(file?.name || ""),
-        ) ||
-        files.find((file) => /\.wsz$/i.test(file?.name || "")) ||
-        files.find(
-          (file) =>
-            String(firstValue(metadata.skintype) || "").toLowerCase() === "wsz" &&
-            /\.zip$/i.test(file?.name || ""),
-        );
-      if (skinFile?.name) {
-        skinUrl = `https://archive.org/cors/${encodeURIComponent(identifier)}/${encodeArchivePath(skinFile.name)}`;
-      }
-    }
-
-    if (!skinUrl) throw new Error("NO CLASSIC WINAMP SKIN FOUND IN ITEM_");
     return {
-      identifier,
-      title: String(firstValue(metadata.title) || identifier),
-      creator: String(firstValue(metadata.creator) || "UNKNOWN CREATOR"),
-      skinUrl: archiveSkinUrl(skinUrl, identifier),
+      md5,
+      name: cleanSkinName(node.filename, md5),
+      skinUrl,
     };
   }
 
-  async function fetchSkinBlob(url) {
-    let cache = null;
-    let response = null;
+  function fearSkin() {
+    return {
+      md5: fearSkinMd5,
+      name: "Fear",
+      skinUrl: canonicalSkinUrl(fearSkinMd5),
+    };
+  }
 
-    if ("caches" in window) {
-      try {
-        cache = await caches.open(skinCacheName);
-        response = await cache.match(url);
-      } catch {
-        cache = null;
-      }
+  function readStoredSkinMd5() {
+    const current = String(readStorage(skinStorageKey) || "").toLowerCase();
+    if (isSkinMd5(current)) return current;
+
+    const legacy = String(readStorage(legacySkinStorageKey) || "").toLowerCase();
+    const migrated = isSkinMd5(legacy) ? legacy : fearSkinMd5;
+    if (legacy || current) writeStorage(skinStorageKey, migrated);
+    return migrated;
+  }
+
+  async function fetchWithTimeout(url, init, timeout = 20_000) {
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timer = controller
+      ? window.setTimeout(() => controller.abort(), timeout)
+      : null;
+    try {
+      return await fetch(url, {
+        ...init,
+        ...(controller ? { signal: controller.signal } : {}),
+      });
+    } finally {
+      if (timer != null) window.clearTimeout(timer);
+    }
+  }
+
+  async function requestMuseum(query, variables) {
+    let response;
+    try {
+      response = await fetchWithTimeout(museumEndpoint, {
+        method: "POST",
+        mode: "cors",
+        credentials: "omit",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, variables }),
+      });
+    } catch {
+      throw new Error("SKIN CATALOG UNAVAILABLE_");
     }
 
-    if (!response) {
-      response = await fetch(url, { mode: "cors" });
-      if (!response.ok) throw new Error(`SKIN DOWNLOAD FAILED: ${response.status}_`);
-      const declaredSize = Number(response.headers.get("content-length") || 0);
-      if (declaredSize > maxSkinBytes) throw new Error("SKIN IS TOO LARGE_");
+    if (!response.ok) {
+      throw new Error(`SKIN CATALOG ERROR ${response.status}_`);
+    }
+
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new Error("SKIN CATALOG RETURNED INVALID DATA_");
+    }
+
+    if (payload?.errors?.length || !payload?.data) {
+      throw new Error("SKIN CATALOG QUERY FAILED_");
+    }
+    return payload.data;
+  }
+
+  async function fetchMuseumPage(first, offset) {
+    const data = await requestMuseum(catalogQuery, { first, offset });
+    const connection = data?.skins;
+    const count = Number(connection?.count);
+    if (!Number.isSafeInteger(count) || count < 0 || !Array.isArray(connection?.nodes)) {
+      throw new Error("SKIN CATALOG RETURNED INVALID DATA_");
+    }
+
+    return {
+      count,
+      records: connection.nodes.map(normalizeMuseumSkin).filter(Boolean),
+    };
+  }
+
+  async function fetchMuseumSkin(md5) {
+    const data = await requestMuseum(skinByMd5Query, { md5 });
+    return normalizeMuseumSkin(data?.fetch_skin_by_md5);
+  }
+
+  async function fetchInitialCatalog() {
+    const records = [];
+    const seen = new Set();
+    let count = 0;
+    let offset = 0;
+    let requestSize = catalogTargetSize;
+    let attempts = 0;
+
+    while (records.length < catalogTargetSize && attempts < 6) {
+      const page = await fetchMuseumPage(requestSize, offset);
+      count = page.count;
+      page.records.forEach((record) => {
+        if (seen.has(record.md5) || records.length >= catalogTargetSize) return;
+        seen.add(record.md5);
+        records.push(record);
+      });
+
+      offset += requestSize;
+      attempts += 1;
+      if (offset >= count) break;
+      requestSize = Math.min(100, catalogTargetSize - records.length);
+      if (requestSize < 1) break;
+    }
+
+    return { count, records };
+  }
+
+  async function responseToLimitedBlob(response) {
+    const declaredSize = Number(response.headers.get("content-length") || 0);
+    if (Number.isFinite(declaredSize) && declaredSize > maxSkinBytes) {
+      throw new Error("SKIN IS TOO LARGE_");
+    }
+
+    const type = response.headers.get("content-type") || "application/octet-stream";
+    if (response.body?.getReader) {
+      const reader = response.body.getReader();
+      const chunks = [];
+      let size = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > maxSkinBytes) {
+          await reader.cancel();
+          throw new Error("SKIN IS TOO LARGE_");
+        }
+        chunks.push(value);
+      }
+      return new Blob(chunks, { type });
     }
 
     const blob = await response.blob();
     if (blob.size > maxSkinBytes) throw new Error("SKIN IS TOO LARGE_");
+    return blob;
+  }
 
-    if (cache && !response.headers.get("x-flanguage-cached")) {
+  async function validateSkinBlob(blob) {
+    if (!blob || blob.size < 4 || blob.size > maxSkinBytes) {
+      throw new Error(blob?.size > maxSkinBytes ? "SKIN IS TOO LARGE_" : "SKIN FILE IS INVALID_");
+    }
+    const prefix = blob.slice(0, 4);
+    let bytes;
+    if (typeof prefix.arrayBuffer === "function") {
+      bytes = await prefix.arrayBuffer();
+    } else {
+      bytes = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.addEventListener("load", () => resolve(reader.result), { once: true });
+        reader.addEventListener("error", () => reject(reader.error), { once: true });
+        reader.readAsArrayBuffer(prefix);
+      });
+    }
+    const signature = new Uint8Array(bytes);
+    const validZip =
+      signature[0] === 0x50 &&
+      signature[1] === 0x4b &&
+      ((signature[2] === 0x03 && signature[3] === 0x04) ||
+        (signature[2] === 0x05 && signature[3] === 0x06) ||
+        (signature[2] === 0x07 && signature[3] === 0x08));
+    if (!validZip) throw new Error("SKIN FILE IS NOT A WINAMP ARCHIVE_");
+    return blob;
+  }
+
+  async function openSkinCache() {
+    if (!("caches" in window)) return null;
+    try {
+      return await caches.open(skinCacheName);
+    } catch {
+      return null;
+    }
+  }
+
+  async function trimSkinCache(cache) {
+    try {
+      const keys = await cache.keys();
+      const excess = keys.length - maxCachedSkins;
+      if (excess > 0) {
+        await Promise.all(keys.slice(0, excess).map((key) => cache.delete(key)));
+      }
+    } catch {
+      // Cache eviction is best effort.
+    }
+  }
+
+  async function fetchSkinBlob(skinUrl) {
+    const parsed = new URL(skinUrl);
+    const md5 = parsed.pathname.match(/^\/skins\/([a-f0-9]{32})\.wsz$/)?.[1];
+    if (
+      parsed.protocol !== "https:" ||
+      parsed.origin !== museumCdnOrigin ||
+      !md5 ||
+      parsed.href !== canonicalSkinUrl(md5)
+    ) {
+      throw new Error("SKIN URL WAS REJECTED_");
+    }
+
+    const cache = await openSkinCache();
+    if (cache) {
+      try {
+        const cached = await cache.match(skinUrl);
+        if (cached) return await validateSkinBlob(await responseToLimitedBlob(cached));
+      } catch {
+        try {
+          await cache.delete(skinUrl);
+        } catch {
+          // A bad cache entry should never block a clean network request.
+        }
+      }
+    }
+
+    let response;
+    try {
+      response = await fetchWithTimeout(
+        skinUrl,
+        {
+          mode: "cors",
+          credentials: "omit",
+          redirect: "error",
+        },
+        25_000,
+      );
+    } catch {
+      throw new Error("SKIN DOWNLOAD FAILED_");
+    }
+    if (!response.ok) throw new Error(`SKIN DOWNLOAD FAILED: ${response.status}_`);
+    if (response.url && response.url !== skinUrl) throw new Error("SKIN URL WAS REJECTED_");
+
+    const blob = await validateSkinBlob(await responseToLimitedBlob(response));
+    if (cache) {
       try {
         await cache.put(
-          url,
+          skinUrl,
           new Response(blob, {
             headers: {
               "Content-Type": blob.type || "application/octet-stream",
               "Content-Length": String(blob.size),
-              "X-Flanguage-Cached": "1",
             },
           }),
         );
+        await trimSkinCache(cache);
       } catch {
-        // A full or disabled cache should not prevent the skin from loading.
+        // Playback does not depend on persistent browser cache availability.
       }
     }
-
     return blob;
+  }
+
+  function getViewportSize(viewport) {
+    const rect = viewport.getBoundingClientRect?.() || {};
+    return {
+      width: Number(rect.width) || viewport.clientWidth || window.innerWidth || 275,
+      height: Number(rect.height) || viewport.clientHeight || window.innerHeight || 232,
+    };
+  }
+
+  function getInitialWindowLayout(viewport) {
+    const { width, height } = getViewportSize(viewport);
+    const preferredScale = Math.min(1.5, width / 275);
+    const extraHeight = Math.max(
+      0,
+      Math.min(14, Math.floor((height / preferredScale - 232) / 29)),
+    );
+    return {
+      extraHeight,
+      groupHeight: 232 + 29 * extraHeight,
+    };
+  }
+
+  const lockedWebampSelectors = [
+    "#close",
+    "#minimize",
+    "#shade",
+    "#option",
+    "#eject",
+    "#equalizer-button",
+    "#playlist-button",
+    "#playlist-close-button",
+    "#playlist-shade-button",
+    "#playlist-resize-target",
+    "#playlist-add-menu",
+    "#playlist-remove-menu",
+    "#playlist-selection-menu",
+    "#playlist-misc-menu",
+    "#playlist-list-menu",
+    ".playlist-eject-button",
+  ].join(",");
+
+  function lockWebampChrome(host) {
+    host.querySelectorAll(lockedWebampSelectors).forEach((element) => {
+      element.style.setProperty("pointer-events", "none", "important");
+      element.setAttribute("aria-hidden", "true");
+      if ("tabIndex" in element) element.tabIndex = -1;
+    });
+  }
+
+  function shouldBlockWebampEvent(event) {
+    const target = event.target;
+    return Boolean(
+      target?.classList?.contains("draggable") ||
+        target?.closest?.(lockedWebampSelectors),
+    );
   }
 
   window.createFlanguageWinampMode = async function createFlanguageWinampMode(
@@ -411,47 +647,61 @@
       throw new Error("THIS BROWSER CANNOT RUN WEBAMP_");
     }
 
-    const {
-      audio,
-      getSpectrumFrame,
-      host,
-      initialTrackId,
-      loadSkinButton,
-      onTrackChange,
-      placeholder,
-      randomSkinButton,
-      skinSelect,
-      skinSource,
-      skinStatus,
-      skinUrlInput,
-      tracks,
-    } = options;
+    const audio = options.audio;
+    const host = options.host;
+    const viewport = options.viewport || host?.parentElement;
+    const skinSelect = options.select || options.skinSelect;
+    const randomSkinButton = options.randomButton || options.randomSkinButton;
+    const skinStatus = options.status || options.skinStatus;
+    const placeholder = options.placeholder;
+    const sourceTracks = options.initialTracks || options.tracks || [];
+    const getSpectrumFrame = options.onSpectrum || options.getSpectrumFrame || (() => null);
+    const onTrackChange = options.onTrackChange || (() => {});
+    const onEnded = options.onEnded || (() => {});
 
-    const playableTracks = tracks.filter((track) => track.audio);
+    if (!audio || !host || !viewport || !skinSelect || !randomSkinButton || !skinStatus) {
+      throw new Error("WINAMP MODE CONTROLS ARE INCOMPLETE_");
+    }
+
+    const playableTracks = sourceTracks
+      .filter((track) => track?.audio)
+      .map((track, index) => ({
+        ...track,
+        id: track.id || track.audio || `track-${index}`,
+      }));
     if (!playableTracks.length) {
       throw new Error("DIRECT AUDIO STREAMS ARE AVAILABLE ON THE LIVE PAGE_");
     }
 
     const trackByUrl = new Map(playableTracks.map((track) => [track.audio, track]));
-    const trackIndexById = new Map(
-      playableTracks.map((track, index) => [track.id, index]),
-    );
+    const trackById = new Map(playableTracks.map((track) => [track.id, track]));
+    const skinRecords = new Map();
     let activeTrackId = null;
+    let activeSkinMd5 = null;
+    let catalogCount = 0;
     let skinBlobUrl = null;
     let skinLoading = false;
+    let disposed = false;
 
     function setStatus(message, error = false) {
       skinStatus.textContent = message;
       skinStatus.classList.toggle("error", error);
     }
 
-    function getActiveSpectrumFrame(trackId, time) {
-      return getSpectrumFrame(trackId, time);
+    function safeSpectrumFrame(trackId, time) {
+      try {
+        return getSpectrumFrame(trackId, time);
+      } catch {
+        return null;
+      }
     }
 
     const MediaClass = createMediaClass({
       audio,
-      getSpectrumFrame: getActiveSpectrumFrame,
+      getSpectrumFrame: safeSpectrumFrame,
+      onEnded(trackId) {
+        onEnded(trackId);
+      },
       setActiveTrack(trackId) {
         activeTrackId = trackId;
       },
@@ -463,11 +713,37 @@
       url: track.audio,
       duration: track.duration,
       metaData: {
-        artist: "Flanguage",
-        title: track.title,
-        album: track.album.title,
+        artist: track.artist || "Flanguage",
+        title: track.title || "Untitled",
+        album: track.album?.title || track.album || "Flanguage",
       },
     }));
+
+    const initialLayout = getInitialWindowLayout(viewport);
+    const stageHeight = initialLayout.groupHeight;
+    host.style.position = "absolute";
+    host.style.left = "50%";
+    host.style.top = "50%";
+    host.style.width = "275px";
+    host.style.height = `${stageHeight}px`;
+    host.style.transformOrigin = "50% 50%";
+    try {
+      if (getComputedStyle(viewport).position === "static") {
+        viewport.style.position = "relative";
+      }
+    } catch {
+      viewport.style.position = "relative";
+    }
+
+    function fitStage() {
+      const { width, height } = getViewportSize(viewport);
+      const scale = Math.max(
+        0.01,
+        Math.min(1.5, width / 275, height / stageHeight),
+      );
+      host.style.transform = `translate(-50%, -50%) scale(${scale})`;
+    }
+    fitStage();
 
     const webamp = new window.Webamp({
       initialTracks: webampTracks,
@@ -483,7 +759,7 @@
         },
         playlist: {
           position: { top: 116, left: 0 },
-          size: { extraHeight: 3, extraWidth: 0 },
+          size: { extraHeight: initialLayout.extraHeight, extraWidth: 0 },
           closed: false,
         },
       },
@@ -492,25 +768,57 @@
     webamp.onWillClose((cancel) => cancel());
     await webamp.renderInto(host);
     host.classList.add("ready");
-    placeholder.hidden = true;
+    viewport.classList.add("ready");
+    if (placeholder) placeholder.hidden = true;
+
+    const resizeObserver =
+      typeof ResizeObserver === "function"
+        ? new ResizeObserver(() => fitStage())
+        : null;
+    resizeObserver?.observe(viewport);
+    window.addEventListener("resize", fitStage);
+
+    const blockChromeEvent = (event) => {
+      if (!shouldBlockWebampEvent(event)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    const blockDropEvent = (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    ["pointerdown", "mousedown", "touchstart", "dblclick", "contextmenu"].forEach(
+      (eventName) => host.addEventListener(eventName, blockChromeEvent, true),
+    );
+    ["dragenter", "dragover", "drop"].forEach((eventName) =>
+      host.addEventListener(eventName, blockDropEvent, true),
+    );
+    lockWebampChrome(host);
+    const chromeObserver =
+      typeof MutationObserver === "function"
+        ? new MutationObserver(() => lockWebampChrome(host))
+        : null;
+    chromeObserver?.observe(host, { childList: true, subtree: true });
 
     function selectTrack(trackId, autoplay = false) {
-      const index = trackIndexById.get(trackId);
-      if (index == null) return false;
+      const target = trackById.get(trackId);
+      if (!target) return false;
+      const index = webamp
+        .getPlaylistTracks()
+        .findIndex((item) => item.url === target.audio);
+      if (index < 0) return false;
       if (!autoplay) webamp.stop();
-      activeTrackId = trackId;
+      activeTrackId = target.id;
       webamp.setCurrentTrack(index);
       if (autoplay) webamp.play();
-      onTrackChange(trackId);
+      onTrackChange(target.id);
       return true;
     }
 
-    selectTrack(
-      trackIndexById.has(initialTrackId)
-        ? initialTrackId
-        : playableTracks[0].id,
-      false,
-    );
+    const initialTrackId = trackById.has(options.initialTrackId)
+      ? options.initialTrackId
+      : playableTracks[0].id;
+    selectTrack(initialTrackId, false);
 
     webamp.onTrackDidChange((trackInfo) => {
       const track = trackInfo?.url ? trackByUrl.get(trackInfo.url) : null;
@@ -519,99 +827,181 @@
       onTrackChange(track.id);
     });
 
-    function reflectSkinChoice(skin) {
+    function addSkinRecord(record) {
+      skinRecords.set(record.md5, record);
+      return record;
+    }
+
+    function createSkinOption(record, transient = false) {
+      const option = document.createElement("option");
+      option.value = record.md5;
+      option.textContent = record.name;
+      if (transient) option.dataset.transient = "true";
+      return option;
+    }
+
+    function populateSkinSelect(records) {
+      skinSelect.textContent = "";
+      const fragment = document.createDocumentFragment();
+      records.forEach((record) => {
+        addSkinRecord(record);
+        fragment.append(createSkinOption(record));
+      });
+      skinSelect.append(fragment);
+    }
+
+    function reflectSkinChoice(record) {
       Array.from(skinSelect.options)
-        .filter((option) => option.dataset.custom === "true")
+        .filter((option) => option.dataset.transient === "true")
         .forEach((option) => option.remove());
       let option = Array.from(skinSelect.options).find(
-        (candidate) => candidate.value === skin.identifier,
+        (candidate) => candidate.value === record.md5,
       );
       if (!option) {
-        option = document.createElement("option");
-        option.value = skin.identifier;
-        option.dataset.custom = "true";
-        option.textContent = `CUSTOM / ${skin.title.toLocaleUpperCase()}`;
+        option = createSkinOption(record, true);
         skinSelect.append(option);
       }
-      skinSelect.value = skin.identifier;
+      addSkinRecord(record);
+      skinSelect.value = record.md5;
     }
 
     function setSkinBusy(busy) {
       skinLoading = busy;
-      skinSelect.disabled = busy;
-      randomSkinButton.disabled = busy;
-      loadSkinButton.disabled = busy;
-      skinUrlInput.disabled = busy;
+      skinSelect.disabled = busy || skinSelect.options.length === 0;
+      randomSkinButton.disabled = busy || catalogCount < 1;
     }
 
-    async function applyArchiveSkin(value) {
-      if (skinLoading) return false;
-      setSkinBusy(true);
-      setStatus("CONTACTING ARCHIVE.ORG_");
+    async function loadSkinRecord(record) {
       let nextBlobUrl = null;
-      let loaded = false;
-
       try {
-        const skin = await resolveArchiveSkin(value);
-        setStatus(`DOWNLOADING ${skin.title.toLocaleUpperCase()}_`);
-        const blob = await fetchSkinBlob(skin.skinUrl);
+        setStatus(`LOADING ${record.name.toLocaleUpperCase()}_`);
+        const blob = await fetchSkinBlob(record.skinUrl);
+        if (disposed) return false;
         nextBlobUrl = URL.createObjectURL(blob);
         webamp.setSkinFromUrl(nextBlobUrl);
         await webamp.skinIsLoaded();
+        if (disposed) return false;
 
         if (skinBlobUrl) URL.revokeObjectURL(skinBlobUrl);
         skinBlobUrl = nextBlobUrl;
         nextBlobUrl = null;
-        reflectSkinChoice(skin);
-        skinSource.href = `https://archive.org/details/${encodeURIComponent(skin.identifier)}`;
-        skinSource.textContent = `${skin.title.toLocaleUpperCase()} / ARCHIVE.ORG`;
-        writeStorage(skinStorageKey, skin.identifier);
-        setStatus(
-          `${skin.title.toLocaleUpperCase()} / ${skin.creator.toLocaleUpperCase()}_`,
-        );
-        loaded = true;
+        activeSkinMd5 = record.md5;
+        reflectSkinChoice(record);
+        writeStorage(skinStorageKey, record.md5);
+        setStatus(`${record.name.toLocaleUpperCase()}_`);
+        return true;
       } catch (error) {
         setStatus(error.message || "SKIN COULD NOT BE LOADED_", true);
+        return false;
       } finally {
         if (nextBlobUrl) URL.revokeObjectURL(nextBlobUrl);
-        setSkinBusy(false);
       }
-      return loaded;
     }
 
-    skinSelect.addEventListener("change", () => {
-      void applyArchiveSkin(skinSelect.value);
-    });
-    randomSkinButton.addEventListener("click", () => {
-      const choices = Array.from(skinSelect.options).filter(
-        (option) => option.dataset.custom !== "true",
-      );
-      if (!choices.length) return;
-      const current = choices.findIndex(
-        (option) => option.value === skinSelect.value,
-      );
-      let index = Math.floor(Math.random() * choices.length);
-      if (choices.length > 1 && index === current) index = (index + 1) % choices.length;
-      void applyArchiveSkin(choices[index].value);
-    });
-    loadSkinButton.addEventListener("click", () => {
-      void applyArchiveSkin(skinUrlInput.value);
-    });
-    skinUrlInput.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter") return;
-      event.preventDefault();
-      void applyArchiveSkin(skinUrlInput.value);
-    });
+    async function applySkin(record) {
+      if (skinLoading || !record) return false;
+      setSkinBusy(true);
+      try {
+        return await loadSkinRecord(record);
+      } finally {
+        setSkinBusy(false);
+      }
+    }
 
-    const initialSkin = readStorage(skinStorageKey) || defaultSkinIdentifier;
+    async function chooseRandomSkin() {
+      if (skinLoading || catalogCount < 1) return;
+      setSkinBusy(true);
+      setStatus("CHOOSING A RANDOM SKIN_");
+      try {
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          const pageSize = Math.min(randomBatchSize, catalogCount);
+          const maxOffset = Math.max(0, catalogCount - pageSize);
+          const offset = Math.floor(Math.random() * (maxOffset + 1));
+          const page = await fetchMuseumPage(pageSize, offset);
+          catalogCount = page.count;
+          const choices = page.records.filter(
+            (record) => record.md5 !== activeSkinMd5,
+          );
+          if (!choices.length) continue;
+          const record = choices[Math.floor(Math.random() * choices.length)];
+          addSkinRecord(record);
+          await loadSkinRecord(record);
+          return;
+        }
+        throw new Error("NO SAFE RANDOM SKIN FOUND_");
+      } catch (error) {
+        setStatus(error.message || "RANDOM SKIN UNAVAILABLE_", true);
+      } finally {
+        setSkinBusy(false);
+      }
+    }
+
+    const onSkinSelect = () => {
+      const md5 = String(skinSelect.value || "").toLowerCase();
+      void applySkin(skinRecords.get(md5));
+    };
+    const onRandomSkin = () => void chooseRandomSkin();
+    skinSelect.addEventListener("change", onSkinSelect);
+    randomSkinButton.addEventListener("click", onRandomSkin);
+    setSkinBusy(true);
+
     void (async () => {
-      const loaded = await applyArchiveSkin(initialSkin);
-      if (!loaded && initialSkin !== defaultSkinIdentifier) {
-        await applyArchiveSkin(defaultSkinIdentifier);
+      let desiredSkin = fearSkin();
+      try {
+        setStatus("LOADING SKIN CATALOG_");
+        const catalog = await fetchInitialCatalog();
+        if (disposed) return;
+        catalogCount = catalog.count;
+        populateSkinSelect(catalog.records);
+
+        const storedMd5 = readStoredSkinMd5();
+        desiredSkin = skinRecords.get(storedMd5) || null;
+        if (!desiredSkin && storedMd5 !== fearSkinMd5) {
+          try {
+            desiredSkin = await fetchMuseumSkin(storedMd5);
+          } catch {
+            desiredSkin = null;
+          }
+        }
+        desiredSkin = desiredSkin || fearSkin();
+      } catch {
+        catalogCount = 0;
+        desiredSkin = fearSkin();
+        populateSkinSelect([]);
+        setStatus("SKIN CATALOG OFFLINE. LOADING FEAR_", true);
+      } finally {
+        if (!disposed) setSkinBusy(false);
+      }
+
+      if (disposed) return;
+      let loaded = await applySkin(desiredSkin);
+      if (!loaded && desiredSkin.md5 !== fearSkinMd5) {
+        loaded = await applySkin(fearSkin());
+      }
+      if (!loaded && skinSelect.options.length === 0) {
+        reflectSkinChoice(fearSkin());
+        setSkinBusy(false);
       }
     })();
 
     return {
+      dispose() {
+        if (disposed) return;
+        disposed = true;
+        resizeObserver?.disconnect();
+        chromeObserver?.disconnect();
+        window.removeEventListener("resize", fitStage);
+        ["pointerdown", "mousedown", "touchstart", "dblclick", "contextmenu"].forEach(
+          (eventName) => host.removeEventListener(eventName, blockChromeEvent, true),
+        );
+        ["dragenter", "dragover", "drop"].forEach((eventName) =>
+          host.removeEventListener(eventName, blockDropEvent, true),
+        );
+        skinSelect.removeEventListener("change", onSkinSelect);
+        randomSkinButton.removeEventListener("click", onRandomSkin);
+        if (skinBlobUrl) URL.revokeObjectURL(skinBlobUrl);
+        webamp.dispose?.();
+      },
       isPlaying() {
         return webamp.getMediaStatus() === "PLAYING";
       },
@@ -622,7 +1012,7 @@
         if (webamp.getMediaStatus() === "PLAYING") webamp.pause();
       },
       play() {
-        webamp.play();
+        return webamp.play();
       },
       previous() {
         webamp.previousTrack();
