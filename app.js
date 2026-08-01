@@ -11,7 +11,7 @@
     integrity:
       "sha384-9waE2xOw4VkyDDXbmumm9jR3ovD2w9gGl0+ehyi66rJSOPx9lyNxs8+jSS2HruM6",
   };
-  const modeStorageKey = "flanguage-player-mode";
+  const winampChannelValue = "__winamp__";
 
   const channelOrder = [
     "flanguage",
@@ -73,19 +73,17 @@
     search: document.querySelector("#search"),
     seekRow: document.querySelector("#seek-row"),
     skinSelect: document.querySelector("#skin-select"),
-    skinSource: document.querySelector("#skin-source"),
     skinStatus: document.querySelector("#skin-status"),
-    skinUrl: document.querySelector("#skin-url"),
     spectrum: document.querySelector("#spectrum"),
-    terminalMode: document.querySelector("#terminal-mode"),
     terminalPlayer: document.querySelector("#terminal-player"),
     trackList: document.querySelector("#track-list"),
     webampHost: document.querySelector("#webamp-host"),
+    webampStage: document.querySelector("#webamp-stage"),
     webampAudio: document.querySelector("#winamp-audio"),
-    webampMode: document.querySelector("#winamp-mode"),
+    winampBack: document.querySelector("#winamp-back"),
     webampPlayer: document.querySelector("#winamp-player"),
     webampPlaceholder: document.querySelector("#webamp-placeholder"),
-    loadSkin: document.querySelector("#load-skin"),
+    winampRandomTrack: document.querySelector("#winamp-random-track"),
     randomSkin: document.querySelector("#random-skin"),
   };
 
@@ -146,24 +144,8 @@
 
   const hashParams = new URLSearchParams(location.hash.slice(1));
 
-  function readStorage(key) {
-    try {
-      return localStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  }
-
-  function writeStorage(key, value) {
-    try {
-      localStorage.setItem(key, value);
-    } catch {
-      // Storage can be unavailable in private browsing; the mode still works.
-    }
-  }
-
-  const requestedMode = hashParams.get("mode") || readStorage(modeStorageKey);
-  const initialMode = requestedMode === "winamp" ? "winamp" : "terminal";
+  const initialMode =
+    hashParams.get("mode") === "winamp" ? "winamp" : "terminal";
 
   const state = {
     album: "all",
@@ -365,28 +347,27 @@
 
       const controller = await window.createFlanguageWinampMode({
         audio: elements.webampAudio,
-        getSpectrumFrame: getWinampSpectrumFrame,
-        host: elements.webampHost,
+        host: elements.webampStage,
+        initialTracks: tracks,
         initialTrackId: state.current.id,
-        loadSkinButton: elements.loadSkin,
+        onSpectrum: getWinampSpectrumFrame,
         onTrackChange(trackId) {
           if (state.mode === "winamp") reflectWinampTrack(trackId);
         },
         placeholder: elements.webampPlaceholder,
-        randomSkinButton: elements.randomSkin,
-        skinSelect: elements.skinSelect,
-        skinSource: elements.skinSource,
-        skinStatus: elements.skinStatus,
-        skinUrlInput: elements.skinUrl,
-        tracks,
+        randomButton: elements.randomSkin,
+        select: elements.skinSelect,
+        status: elements.skinStatus,
+        viewport: elements.webampHost,
       });
       state.winamp = controller;
+      elements.winampRandomTrack.disabled = false;
       return controller;
     })().catch((error) => {
       state.winampPromise = null;
       elements.skinStatus.textContent = error.message || "WINAMP MODE FAILED_";
       elements.skinStatus.classList.add("error");
-      elements.webampPlaceholder.textContent = "USE TERMINAL MODE_";
+      elements.webampPlaceholder.textContent = "TAP >_ TO RETURN_";
       throw error;
     });
 
@@ -398,13 +379,11 @@
     elements.terminalPlayer.hidden = winamp;
     elements.directory.hidden = winamp;
     elements.webampPlayer.hidden = !winamp;
-    elements.terminalMode.classList.toggle("active", !winamp);
-    elements.webampMode.classList.toggle("active", winamp);
-    elements.terminalMode.setAttribute("aria-pressed", String(!winamp));
-    elements.webampMode.setAttribute("aria-pressed", String(winamp));
+    document.body.classList.toggle("winamp-active", winamp);
+    elements.albumFilter.value = winamp ? winampChannelValue : state.album;
   }
 
-  async function setMode(mode) {
+  async function setMode(mode, moveFocus = false) {
     const nextMode = mode === "winamp" ? "winamp" : "terminal";
     const changed = state.mode !== nextMode;
 
@@ -417,9 +396,16 @@
     }
 
     state.mode = nextMode;
-    writeStorage(modeStorageKey, nextMode);
     renderMode();
     updateHash(state.current);
+    if (moveFocus) {
+      const target = nextMode === "winamp" ? elements.winampBack : elements.albumFilter;
+      try {
+        target.focus({ preventScroll: true });
+      } catch {
+        target.focus();
+      }
+    }
 
     if (nextMode === "winamp") {
       try {
@@ -615,17 +601,31 @@
       option.textContent = `CH ${String(index + 1).padStart(2, "0")} / ${album.title.toLocaleUpperCase()}`;
       fragment.append(option);
     });
+    const winampOption = document.createElement("option");
+    winampOption.value = winampChannelValue;
+    winampOption.textContent = `CH ${String(orderedAlbums.length + 1).padStart(2, "0")} / WINAMP`;
+    fragment.append(winampOption);
     elements.albumFilter.append(fragment);
   }
 
-  elements.terminalMode.addEventListener("click", () => {
-    void setMode("terminal");
+  elements.winampBack.addEventListener("click", () => {
+    void setMode("terminal", true);
   });
-  elements.webampMode.addEventListener("click", () => {
-    void setMode("winamp");
+  elements.winampRandomTrack.addEventListener("click", async () => {
+    try {
+      const winamp = await ensureWinamp();
+      if (state.mode === "winamp") winamp.random();
+    } catch {
+      // The fullscreen fallback and return control remain available.
+    }
   });
 
   elements.albumFilter.addEventListener("change", (event) => {
+    if (event.target.value === winampChannelValue) {
+      event.target.value = state.album;
+      void setMode("winamp", true);
+      return;
+    }
     state.album = event.target.value;
     const first = visibleTracks()[0];
     if (first) selectTrack(first, true);

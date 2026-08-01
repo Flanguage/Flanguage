@@ -72,47 +72,6 @@ select:focus-visible {
     max(16px, env(safe-area-inset-left));
 }
 
-.mode-switcher {
-  display: flex;
-  width: min(600px, 100%);
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0 auto 18px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--white);
-  font-size: 19px;
-}
-
-.mode-label {
-  flex: 0 0 auto;
-}
-
-.mode-buttons {
-  display: grid;
-  min-width: min(100%, 260px);
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.mode-button {
-  min-height: 38px;
-  padding: 3px 12px;
-  border: 1px solid var(--white);
-  color: var(--white);
-  background: var(--black);
-}
-
-.mode-button + .mode-button {
-  border-left: 0;
-}
-
-.mode-button:hover,
-.mode-button:active,
-.mode-button.active {
-  color: var(--black);
-  background: var(--white);
-}
-
 .player {
   width: min(600px, 100%);
   margin: 0 auto;
@@ -125,43 +84,64 @@ select:focus-visible {
 }
 
 .winamp-player {
-  width: min(600px, 100%);
-  margin: 0 auto 24px;
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  grid-template-rows: 44px minmax(0, 1fr);
+  gap: 4px;
+  margin: 0;
+  padding:
+    max(4px, env(safe-area-inset-top))
+    max(4px, env(safe-area-inset-right))
+    max(4px, env(safe-area-inset-bottom))
+    max(4px, env(safe-area-inset-left));
+  overflow: hidden;
+  background: var(--black);
 }
 
-.skin-controls {
+.winamp-toolbar {
+  position: relative;
+  z-index: 2;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  width: 100%;
+  grid-template-columns: 44px 44px minmax(0, 1fr) 44px;
+  align-items: stretch;
+  gap: 4px;
 }
 
 .skin-select-wrap {
-  display: grid;
+  position: relative;
   min-width: 0;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  border: 1px solid var(--white);
-  font-size: 18px;
-}
-
-.skin-select-wrap > span {
-  padding-left: 10px;
-  white-space: nowrap;
 }
 
 #skin-select {
   width: 100%;
   min-width: 0;
   height: 44px;
-  padding: 0 8px;
+  padding: 0 28px 0 8px;
   overflow: hidden;
-  border: 0;
+  border: 1px solid var(--white);
   color: var(--white);
   background: var(--black);
+  font-size: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
   appearance: none;
   -webkit-appearance: none;
+}
+
+.skin-select-wrap::after {
+  content: "▼";
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  pointer-events: none;
+  font-size: 12px;
+  transform: translateY(-50%);
 }
 
 #skin-select option {
@@ -169,83 +149,55 @@ select:focus-visible {
   background: var(--black);
 }
 
-#random-skin,
-#load-skin {
-  min-width: 80px;
-  min-height: 46px;
-  padding: 4px 10px;
+.winamp-toolbar button {
+  display: grid;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  place-items: center;
   border: 1px solid var(--white);
   color: var(--white);
   background: var(--black);
+  font-size: 19px;
+  line-height: 1;
 }
 
-#random-skin:hover,
-#random-skin:active,
-#load-skin:hover,
-#load-skin:active {
+.winamp-toolbar button:hover,
+.winamp-toolbar button:active {
   color: var(--black);
   background: var(--white);
 }
 
-.skin-url-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.skin-url-wrap {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  border: 1px solid var(--white);
-}
-
-#skin-url {
-  width: 100%;
-  min-width: 0;
-  height: 44px;
-  padding: 0 8px 0 6px;
-  border: 0;
-  color: var(--white);
-  background: var(--black);
-  font-size: 18px;
-  appearance: none;
-  -webkit-appearance: none;
-}
-
-#skin-url::placeholder {
-  color: var(--gray);
-  opacity: 1;
-}
-
-.skin-status {
-  min-height: 24px;
-  margin: 8px 0 4px;
-  color: var(--gray);
-  font-size: 17px;
-}
-
-.skin-status.error {
-  color: var(--white);
+.winamp-toolbar button:disabled,
+#skin-select:disabled {
+  cursor: wait;
+  opacity: 0.5;
 }
 
 .webamp-host {
   position: relative;
   display: grid;
   width: 100%;
-  min-height: 360px;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
   place-items: center;
-  border: 1px solid var(--white);
-  background:
-    linear-gradient(90deg, transparent 49%, var(--dim) 50%, transparent 51%),
-    linear-gradient(transparent 49%, var(--dim) 50%, transparent 51%),
-    var(--black);
-  background-size: 20px 20px;
+  background: var(--black);
+  isolation: isolate;
+  touch-action: manipulation;
+}
+
+.webamp-stage {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  transform-origin: center;
 }
 
 .webamp-placeholder {
+  position: absolute;
+  z-index: 0;
   margin: 0;
   color: var(--gray);
   font-size: 18px;
@@ -255,26 +207,46 @@ select:focus-visible {
   display: none;
 }
 
-.webamp-host #webamp {
-  touch-action: none;
+.webamp-stage #webamp {
+  touch-action: manipulation;
 }
 
 #winamp-audio {
   display: none;
 }
 
-.skin-links {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 8px 18px;
-  margin-top: 8px;
-  font-size: 17px;
+body.winamp-active {
+  overflow: hidden;
 }
 
-.skin-links a {
-  color: var(--white);
-  text-underline-offset: 3px;
+body.winamp-active .terminal {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* Keep Webamp's fixed kiosk layout intact while retaining playback controls. */
+.webamp-stage #option-context,
+.webamp-stage #about,
+.webamp-stage #close,
+.webamp-stage #minimize,
+.webamp-stage #shade,
+.webamp-stage #equalizer-button,
+.webamp-stage #playlist-button,
+.webamp-stage #eject,
+.webamp-stage #playlist-shade-button,
+.webamp-stage #playlist-close-button,
+.webamp-stage #playlist-resize-target,
+.webamp-stage #playlist-add-menu,
+.webamp-stage #playlist-remove-menu,
+.webamp-stage #playlist-selection-menu,
+.webamp-stage #playlist-misc-menu,
+.webamp-stage #playlist-list-menu,
+.webamp-stage .playlist-eject-button {
+  pointer-events: none !important;
 }
 
 #terminal-play {
@@ -546,7 +518,6 @@ select:focus-visible {
   width: 100%;
   height: 46px;
   border: 1px solid var(--white);
-  outline: 0;
   color: var(--white);
   background: var(--black);
   font-size: 20px;
@@ -683,36 +654,6 @@ select:focus-visible {
 
   .terminal {
     padding-inline: 12px;
-  }
-
-  .mode-switcher {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 7px;
-  }
-
-  .mode-buttons {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .skin-select-wrap {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .skin-select-wrap > span {
-    display: none;
-  }
-
-  #random-skin,
-  #load-skin {
-    min-width: 70px;
-    font-size: 18px;
-  }
-
-  .skin-links {
-    align-items: flex-start;
-    flex-direction: column;
   }
 
   #spectrum {

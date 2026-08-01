@@ -7,9 +7,9 @@ The site discovers the complete catalog automatically, with:
 
 - Bandcamp-backed playback with a native-audio path and official embed fallback
 - Black-and-white, artwork-free transport controls
-- Opt-in Webamp mode with classic Archive.org Winamp skins and playlist UI
-- Fear skin by default, curated skin randomizer, and support for pasted
-  Archive.org skin item URLs
+- Hidden CH 18 Webamp view with a phone-filling player and playlist UI
+- Up to 500 selectable Winamp Skin Museum skins plus a randomizer spanning the
+  full catalog of more than 100,000 classic skins
 - Terminal-themed album channels and catalog search
 - Alphabetical A–Z browsing across all tracks
 - Previous/next navigation
@@ -21,18 +21,24 @@ The site discovers the complete catalog automatically, with:
 - Responsive layouts for phones and desktops
 - iPhone-safe touch controls with double-tap zoom and text selection disabled
 
-## Winamp skin mode
+## Winamp view
 
-Switch `PLAYER_MODE` from `TERMINAL` to `WINAMP` to load the self-hosted Webamp
-2.3.1 player. Classic `.wsz` files are resolved from Archive.org item metadata,
-downloaded through Archive.org's CORS endpoint, limited to 5 MB, and cached in
-the browser. Individual skins are not copied into this repository; the mode
-keeps the current Archive.org item and creator visible in the interface.
+Select `CH 18 / WINAMP` after the album channels to open the self-hosted Webamp
+2.3.1 player as the full-screen phone interface. Its compact top bar only has a
+return control, random song, skin selector, and random skin. The initial selector
+loads up to 500 safe Museum-ranked entries from the public
+[Winamp Skin Museum](https://skins.webamp.org) catalog. Random skin samples the
+entire catalog instead of being limited to those entries.
+
+Classic `.wsz` files are streamed from the Museum's public skin CDN, limited to
+5 MB, validated, and cached on demand in the browser. Individual community-made
+skins are not copied or redistributed in this repository. Fear remains the
+default and catalog-query fallback skin selection.
 
 The Webamp audio adapter deliberately uses a separate native audio element so
 Bandcamp streams still play without cross-origin Web Audio access. Its built-in
 analyzer is driven by this project's song-synchronized spectrum data rather
-than decorative animation. Terminal mode remains the default and fallback,
+than decorative animation. The terminal remains the default and fallback,
 including for Bandcamp iframe-only tracks and iOS background playback.
 
 Webamp is MIT-licensed; its license is included in

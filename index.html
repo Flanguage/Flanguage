@@ -22,28 +22,10 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23000'/%3E%3Cpath d='M12 12h40v8H22v10h24v8H22v14H12z' fill='%23fff'/%3E%3C/svg%3E"
     >
-    <link rel="stylesheet" href="styles.css?v=8">
+    <link rel="stylesheet" href="styles.css?v=9">
   </head>
   <body>
     <main class="terminal" aria-label="Flanguage music terminal">
-      <header class="mode-switcher">
-        <span class="mode-label" aria-hidden="true">PLAYER_MODE:</span>
-        <div class="mode-buttons" role="group" aria-label="Player mode">
-          <button
-            id="terminal-mode"
-            class="mode-button active"
-            type="button"
-            aria-pressed="true"
-          >TERMINAL</button>
-          <button
-            id="winamp-mode"
-            class="mode-button"
-            type="button"
-            aria-pressed="false"
-          >WINAMP</button>
-        </div>
-      </header>
-
       <section id="terminal-player" class="player">
         <nav class="transport" aria-label="Playback">
           <button
@@ -110,67 +92,52 @@
       <section
         id="winamp-player"
         class="winamp-player"
-        aria-label="Archive.org Winamp skin player"
+        aria-label="Winamp player"
         hidden
       >
-        <div class="skin-controls">
+        <nav class="winamp-toolbar" aria-label="Winamp view controls">
+          <button
+            id="winamp-back"
+            type="button"
+            aria-label="Return to terminal"
+            title="Return to terminal"
+          >&gt;_</button>
+          <button
+            id="winamp-random-track"
+            type="button"
+            aria-label="Random song"
+            title="Random song"
+            disabled
+          >♪↻</button>
           <label class="skin-select-wrap">
-            <span>ARCHIVE_SKIN:</span>
-            <select id="skin-select" aria-label="Archive.org Winamp skin">
-              <option value="winampskin_fear">FEAR</option>
-              <option value="winampskin_Winamp_Classic_CM">
-                WINAMP CLASSIC [CM]
-              </option>
-              <option value="winampskins_Aiwa__NSX__S90_3.0">
-                AIWA NSX S90
-              </option>
-              <option value="winampskins_The_Silence_1">
-                THE SILENCE
-              </option>
-              <option value="winampskins_default_2">DEFAULT.WSZ</option>
+            <span class="sr-only">Winamp skin</span>
+            <select id="skin-select" aria-label="Winamp skin" disabled>
+              <option value="">SKINS…</option>
             </select>
           </label>
-          <button id="random-skin" type="button">RANDOM</button>
-        </div>
+          <button
+            id="random-skin"
+            type="button"
+            aria-label="Random skin"
+            title="Random skin"
+            disabled
+          >▦↻</button>
+        </nav>
 
-        <div class="skin-url-row">
-          <label class="skin-url-wrap">
-            <span class="sr-only">Archive.org skin item URL or identifier</span>
-            <span class="prompt" aria-hidden="true">&gt;</span>
-            <input
-              id="skin-url"
-              type="url"
-              inputmode="url"
-              placeholder="PASTE ARCHIVE.ORG SKIN URL_"
-              autocomplete="off"
-              autocapitalize="off"
-              spellcheck="false"
-            >
-          </label>
-          <button id="load-skin" type="button">LOAD</button>
-        </div>
-
-        <p id="skin-status" class="skin-status" role="status" aria-live="polite">
+        <p
+          id="skin-status"
+          class="skin-status sr-only"
+          role="status"
+          aria-live="polite"
+        >
           WINAMP PLAYER STANDBY_
         </p>
         <audio id="winamp-audio" preload="metadata" playsinline></audio>
         <div id="webamp-host" class="webamp-host">
+          <div id="webamp-stage" class="webamp-stage"></div>
           <p id="webamp-placeholder" class="webamp-placeholder">
             LOADING WINAMP_
           </p>
-        </div>
-        <div class="skin-links">
-          <a
-            id="skin-source"
-            href="https://archive.org/details/winampskin_fear"
-            target="_blank"
-            rel="noopener noreferrer"
-          >CURRENT SKIN / ARCHIVE.ORG</a>
-          <a
-            href="https://archive.org/details/winampskins"
-            target="_blank"
-            rel="noopener noreferrer"
-          >BROWSE SKINS</a>
         </div>
       </section>
 
@@ -213,6 +180,6 @@
       </p>
     </noscript>
 
-    <script src="bootstrap.js?v=4"></script>
+    <script src="bootstrap.js?v=5"></script>
   </body>
 </html>

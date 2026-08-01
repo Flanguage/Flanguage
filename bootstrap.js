@@ -31,8 +31,8 @@
         `data/spectrum-index.js?catalog=${catalogRevision}&fresh=${fresh}`,
       ),
     ]);
-    await loadScript("winamp-mode.js?v=1");
-    await loadScript(`app.js?v=13&catalog=${catalogRevision}`);
+    await loadScript("winamp-mode.js?v=2");
+    await loadScript(`app.js?v=14&catalog=${catalogRevision}`);
   }
 
   start().catch(() => {
